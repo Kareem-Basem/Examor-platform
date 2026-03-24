@@ -559,14 +559,14 @@ function AdminDashboard() {
 
   const styles = {
     card: { backgroundColor: colors.cardBg, border: `1px solid ${colors.border}`, borderRadius: 14, boxShadow: colors.shadow, padding: 18 },
-    table: { width: '100%', minWidth: isTablet ? 900 : '100%', borderCollapse: 'collapse', backgroundColor: 'transparent', border: 'none' },
-    th: { backgroundColor: colors.cardBg2, color: colors.text, padding: '12px 15px', textAlign: 'left', fontSize: 13, borderBottom: `1px solid ${colors.border}` },
-    td: { padding: '12px 15px', fontSize: 13, color: colors.textMuted, borderBottom: `1px solid ${colors.border}`, verticalAlign: 'top' },
+    table: { width: '100%', minWidth: isTablet ? 900 : '100%', borderCollapse: 'collapse', backgroundColor: 'transparent', border: 'none', tableLayout: 'fixed' },
+    th: { backgroundColor: colors.cardBg2, color: colors.text, padding: '12px 15px', textAlign: 'left', fontSize: 13, borderBottom: `1px solid ${colors.border}`, whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' },
+    td: { padding: '12px 15px', fontSize: 13, color: colors.textMuted, borderBottom: `1px solid ${colors.border}`, verticalAlign: 'top', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', overflow: 'hidden' },
     input: { width: '100%', padding: '11px 12px', backgroundColor: colors.inputBg, border: `1px solid ${colors.inputBorder}`, borderRadius: 10, fontSize: 13, color: colors.inputText, outline: 'none', boxSizing: 'border-box' },
     row: (index) => ({ backgroundColor: isDark ? (index % 2 === 0 ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,.06)') : (index % 2 === 0 ? '#fff' : '#FBF9F6'), transition: 'background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease' }),
     btn: (bg, fg) => ({ padding: '8px 10px', backgroundColor: bg, color: fg, border: `1px solid ${colors.border}`, borderRadius: 10, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }),
-    actionsWrap: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, minWidth: 220 },
-    actionBtn: { padding: '7px 10px', borderRadius: 10, border: `1px solid ${colors.border}`, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', transition: 'transform 120ms ease, box-shadow 120ms ease' },
+    actionsWrap: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, minWidth: 240, alignContent: 'start' },
+    actionBtn: { padding: '8px 12px', borderRadius: 10, border: `1px solid ${colors.border}`, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', transition: 'transform 120ms ease, box-shadow 120ms ease', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.2, minHeight: 36, textAlign: 'center' },
     actionBtnPrimary: { backgroundColor: colors.btnPrimary, color: colors.btnPrimaryTxt },
     actionBtnNeutral: { backgroundColor: colors.cardBg2, color: colors.text },
     actionBtnSuccess: { backgroundColor: '#1f3f27', color: '#fff' },
@@ -608,8 +608,9 @@ function AdminDashboard() {
     stickyCell: (bg) => ({
       position: 'sticky',
       [isAr ? 'left' : 'right']: 0,
-      zIndex: 2,
-      backgroundColor: bg,
+      zIndex: 4,
+      backgroundColor: isDark ? colors.cardBg : bg,
+      backgroundClip: 'padding-box',
       boxShadow: isAr ? '2px 0 8px rgba(0,0,0,0.04)' : '-2px 0 8px rgba(0,0,0,0.04)',
     }),
   };
@@ -635,7 +636,20 @@ function AdminDashboard() {
               {heads.map((head, index) => {
                 const stickyLast = options?.stickyLast && index === heads.length - 1;
                 const stickyStyle = stickyLast ? styles.stickyHeaderCell : null;
-                return <th key={String(head)} style={{ ...styles.th, ...stickyStyle }}>{head}</th>;
+                const width = options?.colWidths?.[index];
+                return (
+                  <th
+                    key={String(head)}
+                    style={{
+                      ...styles.th,
+                      ...stickyStyle,
+                      width: width || 'auto',
+                      minWidth: width || undefined,
+                    }}
+                  >
+                    {head}
+                  </th>
+                );
               })}
             </tr>
           </thead>
@@ -917,34 +931,34 @@ function AdminDashboard() {
             <button type="button" disabled={selectedUserIds.length === 0} onClick={async () => { try { await handleBulkAcademicVerification(false); } catch (err) { notifyError(err); } }} style={{ ...styles.btn('#3f1f1f', '#fff'), opacity: selectedUserIds.length === 0 ? 0.6 : 1 }}>{t.unverifySelected}</button>
           </div>
         </div>
-        {renderTable([
-          <input key="select-all" type="checkbox" checked={paged.users.items.length > 0 && paged.users.items.every((item) => selectedUserIds.includes(item.id))} onChange={toggleSelectAllVisibleUsers} />,
-          'ID', t.name, t.email, t.role, t.accountType, t.university, t.branch, t.faculty, t.department, t.accountState, t.actions,
-        ], paged.users.items.map((item, index) => {
-          return (
-            <tr key={item.id} style={styles.row(index)}>
-              <td style={styles.td}><input type="checkbox" checked={selectedUserIds.includes(item.id)} onChange={() => toggleSelectedUser(item.id)} /></td>
-              <td style={styles.td}>{item.id}</td>
-              <td style={{ ...styles.td, color: colors.text }}>{item.name}</td>
-              <td style={styles.td}>{item.email}</td>
-              <td style={styles.td}>{item.role}</td>
-              <td style={{ ...styles.td, minWidth: 260 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span>{profileLabel(item)}</span>
-                  {isAcademicAccount(item) && (
+          {renderTable([
+            <input key="select-all" type="checkbox" checked={paged.users.items.length > 0 && paged.users.items.every((item) => selectedUserIds.includes(item.id))} onChange={toggleSelectAllVisibleUsers} />,
+            'ID', t.name, t.email, t.role, t.accountType, t.university, t.branch, t.faculty, t.department, t.accountState, t.actions,
+          ], paged.users.items.map((item, index) => {
+            return (
+              <tr key={item.id} style={styles.row(index)}>
+                <td style={styles.td}><input type="checkbox" checked={selectedUserIds.includes(item.id)} onChange={() => toggleSelectedUser(item.id)} /></td>
+                <td style={styles.td}>{item.id}</td>
+                <td style={{ ...styles.td, color: colors.text }}>{item.name}</td>
+                <td style={styles.td}>{item.email}</td>
+                <td style={styles.td}>{item.role}</td>
+                <td style={{ ...styles.td, minWidth: 240, maxWidth: 260, wordBreak: 'break-word', whiteSpace: 'normal' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span>{profileLabel(item)}</span>
+                    {isAcademicAccount(item) && (
                     <span style={{ padding: '3px 8px', borderRadius: 999, backgroundColor: item.academic_verified ? 'rgba(30,107,62,.15)' : 'rgba(227,164,74,.18)', color: item.academic_verified ? '#1e6b3e' : '#a46a11', fontSize: 11, fontWeight: 'bold', border: `1px solid ${colors.border}` }}>
                       {item.academic_verified ? t.academicVerified : t.academicPending}
                     </span>
                   )}
                 </div>
               </td>
-              <td style={styles.td}>{item.university_name || t.noUniversity}</td>
-              <td style={styles.td}>{item.branch_name || '-'}</td>
-              <td style={styles.td}>{item.faculty_name || '-'}</td>
-              <td style={styles.td}>{item.department_name || t.noDepartment}</td>
-              <td style={styles.td}><span style={{ padding: '4px 10px', borderRadius: 999, backgroundColor: item.is_active ? 'rgba(74, 128, 80, 0.18)' : 'rgba(192, 57, 43, 0.18)', color: item.is_active ? '#4A8050' : '#c0392b', fontSize: 12, fontWeight: 'bold', display: 'inline-block' }}>{item.is_active ? t.active : t.inactive}</span></td>
-                <td style={{ ...styles.td, minWidth: 260 }}>
-                  <div style={styles.actionsWrap}>
+                <td style={{ ...styles.td, maxWidth: 180, wordBreak: 'break-word', whiteSpace: 'normal' }}>{item.university_name || t.noUniversity}</td>
+                <td style={{ ...styles.td, maxWidth: 140, wordBreak: 'break-word', whiteSpace: 'normal' }}>{item.branch_name || '-'}</td>
+                <td style={{ ...styles.td, maxWidth: 140, wordBreak: 'break-word', whiteSpace: 'normal' }}>{item.faculty_name || '-'}</td>
+                <td style={{ ...styles.td, maxWidth: 140, wordBreak: 'break-word', whiteSpace: 'normal' }}>{item.department_name || t.noDepartment}</td>
+                <td style={styles.td}><span style={{ padding: '4px 10px', borderRadius: 999, backgroundColor: item.is_active ? 'rgba(74, 128, 80, 0.18)' : 'rgba(192, 57, 43, 0.18)', color: item.is_active ? '#4A8050' : '#c0392b', fontSize: 12, fontWeight: 'bold', display: 'inline-block' }}>{item.is_active ? t.active : t.inactive}</span></td>
+                  <td style={{ ...styles.td, minWidth: 260 }}>
+                    <div style={styles.actionsWrap}>
                     <button type="button" onClick={() => beginUserEdit(item)} style={{ ...styles.actionBtn, ...styles.actionBtnNeutral }}>
                       {t.editUser}
                     </button>
@@ -1063,7 +1077,11 @@ function AdminDashboard() {
                     <option value="independent">{t.independent}</option>
                   </select>
                 </div>
-              )}
+          )}, {
+            colWidths: [
+              36, 60, 140, 200, 90, 240, 180, 140, 140, 140, 140, 260,
+            ],
+          })}
               <div>
                 <label style={{ display: 'block', marginBottom: 6, color: colors.textMuted, fontSize: 12 }}>{t.university}</label>
                 <select

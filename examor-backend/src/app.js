@@ -75,6 +75,16 @@ app.get('/', (req, res) => {
     res.json({ message: 'Examor API is running!' });
 });
 
+// Health Route
+app.get('/api/health', async (_req, res) => {
+    try {
+        await initDb();
+        res.json({ status: 'ok' });
+    } catch (error) {
+        res.status(503).json({ status: 'degraded', message: 'Database unavailable' });
+    }
+});
+
 // Routes
 app.use('/api/auth',    authLimiter, require('./routes/auth.routes'));
 app.use('/api/admin',   require('./routes/admin.routes'));
