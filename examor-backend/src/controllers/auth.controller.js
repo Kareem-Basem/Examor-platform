@@ -8,6 +8,7 @@ const looksLikeBcryptHash = (value) =>
 const normalizeProfileMode = (value) =>
     value === 'independent' || value === 'academic' ? value : null;
 const ACCOUNT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+const allowMultiSession = String(process.env.ALLOW_MULTI_SESSION || 'false').toLowerCase() === 'true';
 const hasIsActiveColumn = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
@@ -195,13 +196,15 @@ const getUserProfileById = async (userId) => {
 };
 
 const createAuthSessionAndToken = async (user) => {
-    const [hasSessionIdColumn, hasSessionLastSeenColumn] = await Promise.all([
-        hasUserColumn('active_session_id'),
-        hasUserColumn('active_session_last_seen')
-    ]);
+    const [hasSessionIdColumn, hasSessionLastSeenColumn] = allowMultiSession
+        ? [false, false]
+        : await Promise.all([
+            hasUserColumn('active_session_id'),
+            hasUserColumn('active_session_last_seen')
+        ]);
 
     let sessionId = null;
-    if (hasSessionIdColumn && hasSessionLastSeenColumn) {
+    if (!allowMultiSession && hasSessionIdColumn && hasSessionLastSeenColumn) {
         const previousSessionId = typeof user.active_session_id === 'string' ? user.active_session_id : null;
         const previousLastSeen = user.active_session_last_seen ? new Date(user.active_session_last_seen).getTime() : null;
         const sessionFresh = Boolean(previousSessionId) && Boolean(previousLastSeen) && ((Date.now() - previousLastSeen) / 1000) < ACCOUNT_SESSION_TTL_SECONDS;
@@ -221,7 +224,7 @@ const createAuthSessionAndToken = async (user) => {
     }
 
     const token = jwt.sign(
-        { id: user.id, role: user.role, sid: sessionId || null },
+        { id: user.id, role: user.role, sid: allowMultiSession ? null : (sessionId || null) },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN }
     );

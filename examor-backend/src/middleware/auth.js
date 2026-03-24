@@ -12,6 +12,8 @@ const hasIsActiveColumn = async () => {
     return Number(result.recordset[0]?.total || 0) > 0;
 };
 
+const allowMultiSession = String(process.env.ALLOW_MULTI_SESSION || 'false').toLowerCase() === 'true';
+
 const verifyToken = async (req, res, next) => {
     try {
         const authHeader = req.headers['authorization'];
@@ -26,21 +28,25 @@ const verifyToken = async (req, res, next) => {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const activeColumnExists = await hasIsActiveColumn();
-        const [hasSessionIdColumn, hasSessionLastSeenColumn] = await Promise.all([
-            sql.query`
-                SELECT COUNT(*) AS total
-                FROM information_schema.columns
-                WHERE table_name = 'users'
-                  AND column_name = 'active_session_id'
-            `,
-            sql.query`
-                SELECT COUNT(*) AS total
-                FROM information_schema.columns
-                WHERE table_name = 'users'
-                  AND column_name = 'active_session_last_seen'
-            `
-        ]);
-        const sessionColumnsExist = Number(hasSessionIdColumn.recordset[0]?.total || 0) > 0 && Number(hasSessionLastSeenColumn.recordset[0]?.total || 0) > 0;
+        const [hasSessionIdColumn, hasSessionLastSeenColumn] = allowMultiSession
+            ? [null, null]
+            : await Promise.all([
+                sql.query`
+                    SELECT COUNT(*) AS total
+                    FROM information_schema.columns
+                    WHERE table_name = 'users'
+                      AND column_name = 'active_session_id'
+                `,
+                sql.query`
+                    SELECT COUNT(*) AS total
+                    FROM information_schema.columns
+                    WHERE table_name = 'users'
+                      AND column_name = 'active_session_last_seen'
+                `
+            ]);
+        const sessionColumnsExist = allowMultiSession
+            ? false
+            : Number(hasSessionIdColumn.recordset[0]?.total || 0) > 0 && Number(hasSessionLastSeenColumn.recordset[0]?.total || 0) > 0;
         const userResult = activeColumnExists
             ? await sql.query`
                 SELECT id, role, is_active,
