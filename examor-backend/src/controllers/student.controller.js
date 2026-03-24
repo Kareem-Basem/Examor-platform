@@ -604,7 +604,10 @@ const getExamMeta = async (code, studentId) => {
                 e.total_marks, e.exam_code,
                 e.start_date, e.end_date,
                 e.access_mode,
-                COALESCE(e.max_attempts_per_student, 1) AS max_attempts_per_student,
+                CASE
+                    WHEN COALESCE(e.is_demo_exam, FALSE) = TRUE THEN 999
+                    ELSE COALESCE(e.max_attempts_per_student, 1)
+                END AS max_attempts_per_student,
                 COALESCE(e.proctoring_enabled, TRUE) AS proctoring_enabled,
                 COALESCE(e.screen_capture_protection, FALSE) AS screen_capture_protection,
                 COALESCE(e.post_end_visibility_mode, 'hide') AS post_end_visibility_mode,
