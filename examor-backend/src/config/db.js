@@ -2,11 +2,13 @@ const { Pool } = require('pg');
 
 const useConnectionString = Boolean(process.env.DATABASE_URL);
 const sslEnabled = String(process.env.DB_SSL || 'false').toLowerCase() === 'true';
+const isSupabase = Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase.com'));
+const sslConfig = (sslEnabled || isSupabase) ? { rejectUnauthorized: false } : false;
 
 const config = useConnectionString
     ? {
         connectionString: process.env.DATABASE_URL,
-        ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+        ssl: sslConfig,
         max: Number(process.env.DB_POOL_MAX || 1),
         idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
         connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 8000),
@@ -22,7 +24,7 @@ const config = useConnectionString
         idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
         connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 8000),
         keepAlive: true,
-        ssl: sslEnabled ? { rejectUnauthorized: false } : false
+        ssl: sslConfig
     };
 
 const pool = new Pool(config);
