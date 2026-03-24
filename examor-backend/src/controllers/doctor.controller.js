@@ -6,7 +6,7 @@ const normalizeVisibilityMode = (value) => (value === 'archive' ? 'archive' : 'h
 const hasFacultyHierarchy = async () => {
     const facultyExists = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
+        FROM information_schema.columns
         WHERE TABLE_NAME = 'departments'
           AND COLUMN_NAME = 'faculty_id'
     `;
@@ -17,7 +17,7 @@ const hasFacultyHierarchy = async () => {
 const hasQuestionOrderColumn = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
+        FROM information_schema.columns
         WHERE TABLE_NAME = 'questions'
           AND COLUMN_NAME = 'question_order'
     `;
@@ -28,7 +28,7 @@ const hasQuestionOrderColumn = async () => {
 const hasExamRandomizationColumns = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
+        FROM information_schema.columns
         WHERE TABLE_NAME = 'exams'
           AND COLUMN_NAME IN ('randomize_questions', 'randomize_options')
     `;
@@ -50,7 +50,7 @@ const normalizeBoolean = (value) => {
 const hasUserColumn = async (columnName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
+        FROM information_schema.columns
         WHERE TABLE_NAME = 'users'
           AND COLUMN_NAME = ${columnName}
     `;
@@ -69,13 +69,14 @@ const ensureDepartmentExamAllowedForDoctor = async (doctorId) => {
     }
 
     const doctorResult = await sql.query(`
-        SELECT TOP 1
+        SELECT
             id,
             role,
-            ${hasProfileModeColumn ? 'profile_mode' : 'CAST(NULL AS NVARCHAR(50)) AS profile_mode'},
-            ${hasAcademicVerifiedColumn ? 'academic_verified' : 'CAST(1 AS bit) AS academic_verified'}
+            ${hasProfileModeColumn ? 'profile_mode' : 'CAST(NULL AS TEXT) AS profile_mode'},
+            ${hasAcademicVerifiedColumn ? 'academic_verified' : 'CAST(TRUE AS BOOLEAN) AS academic_verified'}
         FROM users
         WHERE id = ${doctorId}
+        LIMIT 1
     `);
 
     const doctor = doctorResult.recordset[0];
@@ -123,9 +124,10 @@ const generateUniqueExamCode = async () => {
     while (attempts < 10) {
         const generated = randomExamCode();
         const existing = await sql.query`
-            SELECT TOP 1 id
+            SELECT id
             FROM exams
             WHERE exam_code = ${generated}
+            LIMIT 1
         `;
         if (existing.recordset.length === 0) return generated;
         attempts += 1;
@@ -176,27 +178,27 @@ const getExamState = async (examId, doctorId) => {
             e.id,
             e.start_date,
             e.end_date,
-            CAST(CASE WHEN e.start_date IS NOT NULL AND e.start_date <= GETDATE() THEN 1 ELSE 0 END AS bit) AS has_started,
-            ISNULL(question_stats.questions_count, 0) AS questions_count,
-            ISNULL(attempts.total_attempts, 0) AS total_attempts,
-            ISNULL(attempts.open_attempts, 0) AS open_attempts
+            CASE WHEN e.start_date IS NOT NULL AND e.start_date <= NOW() THEN TRUE ELSE FALSE END AS has_started,
+            COALESCE(question_stats.questions_count, 0) AS questions_count,
+            COALESCE(attempts.total_attempts, 0) AS total_attempts,
+            COALESCE(attempts.open_attempts, 0) AS open_attempts
         FROM exams e
-        OUTER APPLY (
+        LEFT JOIN LATERAL (
             SELECT COUNT(*) AS questions_count
             FROM questions q
             WHERE q.exam_id = e.id
-        ) question_stats
-        OUTER APPLY (
+        ) question_stats ON TRUE
+        LEFT JOIN LATERAL (
             SELECT
                 COUNT(*) AS total_attempts,
                 SUM(CASE WHEN ea.submit_time IS NULL THEN 1 ELSE 0 END) AS open_attempts
             FROM exam_attempts ea
             WHERE ea.exam_id = e.id
-              AND ISNULL(e.is_demo_exam, 0) = 0
-              AND ea.start_time <= GETDATE()
-              AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+              AND COALESCE(e.is_demo_exam, FALSE) = FALSE
+              AND ea.start_time <= NOW()
+              AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
               AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
-        ) attempts
+        ) attempts ON TRUE
         WHERE e.id = ${examId}
           AND e.created_by = ${doctorId}
     `;
@@ -230,7 +232,7 @@ const getCourses = async (req, res) => {
         const hasFaculties = await hasFacultyHierarchy();
         const result = await sql.query(`
             SELECT c.*, d.name AS department_name, b.name AS branch_name, u.name AS university_name,
-                   ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'}
+                   ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'}
             FROM courses c
             JOIN departments d ON c.department_id = d.id
             JOIN branches b ON d.branch_id = b.id
@@ -368,9 +370,9 @@ const createExam = async (req, res) => {
                     ${title}, ${accessMode === 'department' ? course_id : null}, ${req.user.id},
                     ${duration}, ${total_marks}, ${examCode},
                     ${start_date}, ${end_date}, ${accessMode}, ${randomizeQuestions}, ${randomizeOptions},
-                    ${proctoringEnabled}, ${visibilityMode}, ${graceMinutes}, ${maxAttempts}, ${codeMode === 'manual' ? 1 : 0}, ${screenProtection}, ${demoExam}
+                    ${proctoringEnabled}, ${visibilityMode}, ${graceMinutes}, ${maxAttempts}, ${codeMode === 'manual'}, ${screenProtection}, ${demoExam}
                 )
-                SELECT SCOPE_IDENTITY() AS id
+                RETURNING id
             `
             : await sql.query`
                 INSERT INTO exams 
@@ -379,9 +381,9 @@ const createExam = async (req, res) => {
                     ${title}, ${accessMode === 'department' ? course_id : null}, ${req.user.id},
                     ${duration}, ${total_marks}, ${examCode},
                     ${start_date}, ${end_date}, ${accessMode},
-                    ${proctoringEnabled}, ${visibilityMode}, ${graceMinutes}, ${maxAttempts}, ${codeMode === 'manual' ? 1 : 0}, ${screenProtection}, ${demoExam}
+                    ${proctoringEnabled}, ${visibilityMode}, ${graceMinutes}, ${maxAttempts}, ${codeMode === 'manual'}, ${screenProtection}, ${demoExam}
                 )
-                SELECT SCOPE_IDENTITY() AS id
+                RETURNING id
             `;
 
         res.status(201).json({
@@ -412,27 +414,27 @@ const getExam = async (req, res) => {
 
         const exam = await sql.query(`
             SELECT e.*, c.name AS course_name,
-                   ${hasFaculties ? 'f.name AS faculty_name, b.name AS branch_name, u.name AS university_name,' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name, CAST(NULL AS NVARCHAR(255)) AS branch_name, CAST(NULL AS NVARCHAR(255)) AS university_name,'}
-                   CAST(CASE WHEN e.start_date IS NOT NULL AND e.start_date <= GETDATE() THEN 1 ELSE 0 END AS bit) AS has_started,
-                   ISNULL(attempts.total_attempts, 0) AS total_attempts,
-                   ISNULL(attempts.open_attempts, 0) AS open_attempts
+                   ${hasFaculties ? 'f.name AS faculty_name, b.name AS branch_name, u.name AS university_name,' : 'CAST(NULL AS TEXT) AS faculty_name, CAST(NULL AS TEXT) AS branch_name, CAST(NULL AS TEXT) AS university_name,'}
+                   CASE WHEN e.start_date IS NOT NULL AND e.start_date <= NOW() THEN TRUE ELSE FALSE END AS has_started,
+                   COALESCE(attempts.total_attempts, 0) AS total_attempts,
+                   COALESCE(attempts.open_attempts, 0) AS open_attempts
             FROM exams e
             LEFT JOIN courses c ON e.course_id = c.id
             LEFT JOIN departments d ON c.department_id = d.id
             LEFT JOIN branches b ON d.branch_id = b.id
             LEFT JOIN universities u ON b.university_id = u.id
             ${hasFaculties ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
-            OUTER APPLY (
+            LEFT JOIN LATERAL (
                 SELECT
                     COUNT(*) AS total_attempts,
                     SUM(CASE WHEN ea.submit_time IS NULL THEN 1 ELSE 0 END) AS open_attempts
                 FROM exam_attempts ea
                 WHERE ea.exam_id = e.id
-                  AND ISNULL(e.is_demo_exam, 0) = 0
-                  AND ea.start_time <= GETDATE()
-                  AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+                  AND COALESCE(e.is_demo_exam, FALSE) = FALSE
+                  AND ea.start_time <= NOW()
+                  AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
                   AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
-            ) attempts
+            ) attempts ON TRUE
             WHERE e.id = ${examId} AND e.created_by = ${req.user.id}
         `);
 
@@ -445,12 +447,14 @@ const getExam = async (req, res) => {
 
         const questions = await sql.query(`
             SELECT q.*,
-            (SELECT * FROM options o
-             WHERE o.question_id = q.id
-             FOR JSON PATH) AS options
+            COALESCE((
+                SELECT json_agg(o ORDER BY o.id)
+                FROM options o
+                WHERE o.question_id = q.id
+            ), '[]'::json) AS options
             FROM questions q
             WHERE q.exam_id = ${examId}
-            ORDER BY ${hasQuestionOrder ? 'ISNULL(q.question_order, q.id), q.id' : 'q.id'}
+            ORDER BY ${hasQuestionOrder ? 'COALESCE(q.question_order, q.id), q.id' : 'q.id'}
         `);
 
         res.status(200).json({
@@ -476,27 +480,27 @@ const getExams = async (req, res) => {
                 e.*, 
                 c.name AS course_name, c.level,
                 d.name AS department_name,
-                ${hasFaculties ? 'f.name AS faculty_name, b.name AS branch_name, u.name AS university_name,' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name, CAST(NULL AS NVARCHAR(255)) AS branch_name, CAST(NULL AS NVARCHAR(255)) AS university_name,'}
+                ${hasFaculties ? 'f.name AS faculty_name, b.name AS branch_name, u.name AS university_name,' : 'CAST(NULL AS TEXT) AS faculty_name, CAST(NULL AS TEXT) AS branch_name, CAST(NULL AS TEXT) AS university_name,'}
                 (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) AS questions_count,
-                CAST(CASE WHEN e.start_date IS NOT NULL AND e.start_date <= GETDATE() THEN 1 ELSE 0 END AS bit) AS has_started,
-                ISNULL(attempts.total_attempts, 0) AS total_attempts,
-                ISNULL(attempts.open_attempts, 0) AS open_attempts
+                CASE WHEN e.start_date IS NOT NULL AND e.start_date <= NOW() THEN TRUE ELSE FALSE END AS has_started,
+                COALESCE(attempts.total_attempts, 0) AS total_attempts,
+                COALESCE(attempts.open_attempts, 0) AS open_attempts
             FROM exams e
             LEFT JOIN courses c ON e.course_id = c.id
             LEFT JOIN departments d ON c.department_id = d.id
             LEFT JOIN branches b ON d.branch_id = b.id
             LEFT JOIN universities u ON b.university_id = u.id
             ${hasFaculties ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
-            OUTER APPLY (
+            LEFT JOIN LATERAL (
                 SELECT
                     COUNT(*) AS total_attempts,
                     SUM(CASE WHEN ea.submit_time IS NULL THEN 1 ELSE 0 END) AS open_attempts
                 FROM exam_attempts ea
                 WHERE ea.exam_id = e.id
-                  AND ea.start_time <= GETDATE()
-                  AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+                  AND ea.start_time <= NOW()
+                  AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
                   AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
-            ) attempts
+            ) attempts ON TRUE
             WHERE e.created_by = ${req.user.id}
         `);
         res.status(200).json({
@@ -538,7 +542,6 @@ const addQuestion = async (req, res) => {
         const result = hasQuestionOrder
             ? await sql.query`
                 INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
-                OUTPUT INSERTED.id
                 VALUES (
                     ${id},
                     ${question_text},
@@ -546,16 +549,17 @@ const addQuestion = async (req, res) => {
                     ${marks},
                     ${correct_answer || null},
                     (
-                        SELECT ISNULL(MAX(question_order), 0) + 1
+                        SELECT COALESCE(MAX(question_order), 0) + 1
                         FROM questions
                         WHERE exam_id = ${id}
                     )
                 )
+                RETURNING id
             `
             : await sql.query`
                 INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
-                OUTPUT INSERTED.id
                 VALUES (${id}, ${question_text}, ${normalizedType}, ${marks}, ${correct_answer || null})
+                RETURNING id
             `;
 
         const questionId = result.recordset[0].id;
@@ -723,7 +727,7 @@ const updateExam = async (req, res) => {
                     post_end_visibility_mode = ${visibilityMode},
                     post_end_grace_minutes = ${graceMinutes},
                     max_attempts_per_student = ${maxAttempts},
-                    allow_custom_exam_code = ${codeMode === 'manual' ? 1 : 0},
+                    allow_custom_exam_code = ${codeMode === 'manual'},
                     screen_capture_protection = ${screenProtection},
                     is_demo_exam = ${demoExam}
                 WHERE id = ${examId}
@@ -745,7 +749,7 @@ const updateExam = async (req, res) => {
                     post_end_visibility_mode = ${visibilityMode},
                     post_end_grace_minutes = ${graceMinutes},
                     max_attempts_per_student = ${maxAttempts},
-                    allow_custom_exam_code = ${codeMode === 'manual' ? 1 : 0},
+                    allow_custom_exam_code = ${codeMode === 'manual'},
                     screen_capture_protection = ${screenProtection},
                     is_demo_exam = ${demoExam}
                 WHERE id = ${examId}
@@ -1019,13 +1023,17 @@ const getQuestionBank = async (req, res) => {
         const result = await sql.query`
             SELECT
                 qb.*,
-                (
-                    SELECT option_text, is_correct
+                COALESCE((
+                    SELECT json_agg(
+                        json_build_object(
+                            'option_text', qbo.option_text,
+                            'is_correct', qbo.is_correct
+                        )
+                        ORDER BY qbo.id
+                    )
                     FROM question_bank_options qbo
                     WHERE qbo.bank_question_id = qb.id
-                    ORDER BY qbo.id
-                    FOR JSON PATH
-                ) AS options
+                ), '[]'::json) AS options
             FROM question_bank qb
             WHERE qb.doctor_id = ${req.user.id}
             ORDER BY qb.created_at DESC, qb.id DESC
@@ -1072,7 +1080,6 @@ const saveQuestionToBank = async (req, res) => {
 
         const inserted = await new sql.Request(transaction).query`
             INSERT INTO question_bank (doctor_id, question_text, question_type, marks, correct_answer)
-            OUTPUT INSERTED.id
             VALUES (
                 ${req.user.id},
                 ${sourceQuestion.recordset[0].question_text},
@@ -1080,6 +1087,7 @@ const saveQuestionToBank = async (req, res) => {
                 ${sourceQuestion.recordset[0].marks},
                 ${sourceQuestion.recordset[0].correct_answer}
             )
+            RETURNING id
         `;
 
         const bankQuestionId = inserted.recordset[0].id;
@@ -1147,7 +1155,6 @@ const insertQuestionFromBank = async (req, res) => {
         const insertedQuestion = hasQuestionOrder
             ? await new sql.Request(transaction).query`
                 INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
-                OUTPUT INSERTED.id
                 VALUES (
                     ${examId},
                     ${bankQuestion.recordset[0].question_text},
@@ -1155,15 +1162,15 @@ const insertQuestionFromBank = async (req, res) => {
                     ${bankQuestion.recordset[0].marks},
                     ${bankQuestion.recordset[0].correct_answer},
                     (
-                        SELECT ISNULL(MAX(question_order), 0) + 1
+                        SELECT COALESCE(MAX(question_order), 0) + 1
                         FROM questions
                         WHERE exam_id = ${examId}
                     )
                 )
+                RETURNING id
             `
             : await new sql.Request(transaction).query`
                 INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
-                OUTPUT INSERTED.id
                 VALUES (
                     ${examId},
                     ${bankQuestion.recordset[0].question_text},
@@ -1171,6 +1178,7 @@ const insertQuestionFromBank = async (req, res) => {
                     ${bankQuestion.recordset[0].marks},
                     ${bankQuestion.recordset[0].correct_answer}
                 )
+                RETURNING id
             `;
 
         const newQuestionId = insertedQuestion.recordset[0].id;
@@ -1269,7 +1277,6 @@ const duplicateQuestion = async (req, res) => {
         const insertQuestion = hasQuestionOrder
             ? await new sql.Request(transaction).query`
                 INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
-                OUTPUT INSERTED.id
                 VALUES (
                     ${examId},
                     ${sourceQuestion.recordset[0].question_text},
@@ -1277,15 +1284,15 @@ const duplicateQuestion = async (req, res) => {
                     ${sourceQuestion.recordset[0].marks},
                     ${sourceQuestion.recordset[0].correct_answer},
                     (
-                        SELECT ISNULL(MAX(question_order), 0) + 1
+                        SELECT COALESCE(MAX(question_order), 0) + 1
                         FROM questions
                         WHERE exam_id = ${examId}
                     )
                 )
+                RETURNING id
             `
             : await new sql.Request(transaction).query`
                 INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
-                OUTPUT INSERTED.id
                 VALUES (
                     ${examId},
                     ${sourceQuestion.recordset[0].question_text},
@@ -1293,6 +1300,7 @@ const duplicateQuestion = async (req, res) => {
                     ${sourceQuestion.recordset[0].marks},
                     ${sourceQuestion.recordset[0].correct_answer}
                 )
+                RETURNING id
             `;
 
         const duplicatedQuestionId = insertQuestion.recordset[0].id;
@@ -1352,12 +1360,12 @@ const reorderQuestion = async (req, res) => {
         }
 
         const orderedQuestions = await sql.query`
-            SELECT q.id, ISNULL(q.question_order, q.id) AS question_order
+            SELECT q.id, COALESCE(q.question_order, q.id) AS question_order
             FROM questions q
             JOIN exams e ON e.id = q.exam_id
             WHERE q.exam_id = ${examId}
               AND e.created_by = ${req.user.id}
-            ORDER BY ISNULL(q.question_order, q.id), q.id
+            ORDER BY COALESCE(q.question_order, q.id), q.id
         `;
 
         const questionIndex = orderedQuestions.recordset.findIndex((question) => Number(question.id) === questionId);
@@ -1432,14 +1440,14 @@ const getExamResults = async (req, res) => {
                 d.name AS department_name,
                 b.name AS branch_name,
                 u2.name AS university_name,
-                ${hasFaculties ? 'f.name AS faculty_name,' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name,'}
+                ${hasFaculties ? 'f.name AS faculty_name,' : 'CAST(NULL AS TEXT) AS faculty_name,'}
                 CAST(ea.score * 100.0 / e.total_marks AS DECIMAL(5,2)) AS percentage,
                 ea.forced_submit,
-                ISNULL(v.total_violations, 0) AS violations_count,
-                ISNULL(v.violation_summary, '') AS violation_summary,
+                COALESCE(v.total_violations, 0) AS violations_count,
+                COALESCE(v.violation_summary, '') AS violation_summary,
                 CASE
                     WHEN essay_progress.pending_essay_answers > 0 THEN 'Pending Review'
-                    WHEN ea.forced_submit = 1 THEN 'Terminated'
+                    WHEN ea.forced_submit = TRUE THEN 'Terminated'
                     ELSE 'Completed'
                 END AS status
             FROM exam_attempts ea
@@ -1450,26 +1458,26 @@ const getExamResults = async (req, res) => {
             LEFT JOIN branches b ON d.branch_id = b.id
             LEFT JOIN universities u2 ON b.university_id = u2.id
             ${hasFaculties ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
-            OUTER APPLY (
+            LEFT JOIN LATERAL (
                 SELECT
-                    ISNULL(SUM(pv.count), 0) AS total_violations,
-                    ISNULL(STRING_AGG(CONCAT(pv.violation_type, ': ', pv.count), ', '), '') AS violation_summary
+                    COALESCE(SUM(pv.count), 0) AS total_violations,
+                    COALESCE(STRING_AGG(CONCAT(pv.violation_type, ': ', pv.count), ', '), '') AS violation_summary
                 FROM proctoring_violations pv
                 WHERE pv.attempt_id = ea.id
-            ) v
-            OUTER APPLY (
+            ) v ON TRUE
+            LEFT JOIN LATERAL (
                 SELECT COUNT(*) AS pending_essay_answers
                 FROM answers a
                 JOIN questions q ON q.id = a.question_id
                 WHERE a.attempt_id = ea.id
-                  AND UPPER(LTRIM(RTRIM(ISNULL(q.question_type, '')))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
+                  AND UPPER(TRIM(COALESCE(q.question_type, ''))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
                   AND a.reviewed_at IS NULL
-            ) essay_progress
+            ) essay_progress ON TRUE
             WHERE ea.exam_id = ${id}
               AND e.created_by = ${req.user.id}
-              AND ISNULL(e.is_demo_exam, 0) = 0
-              AND ea.start_time <= GETDATE()
-              AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+              AND COALESCE(e.is_demo_exam, FALSE) = FALSE
+              AND ea.start_time <= NOW()
+              AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
               AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
             ORDER BY ea.score DESC
         `);
@@ -1506,7 +1514,7 @@ const getAttemptReview = async (req, res) => {
             JOIN users u ON u.id = ea.student_id
             WHERE ea.id = ${attemptId}
               AND e.created_by = ${req.user.id}
-              AND ISNULL(e.is_demo_exam, 0) = 0
+              AND COALESCE(e.is_demo_exam, FALSE) = FALSE
         `;
 
         const attempt = attemptResult.recordset[0];
@@ -1566,10 +1574,10 @@ const submitAttemptReview = async (req, res) => {
             JOIN exams e ON e.id = ea.exam_id
             WHERE ea.id = ${attemptId}
               AND e.created_by = ${req.user.id}
-              AND ISNULL(e.is_demo_exam, 0) = 0
+              AND COALESCE(e.is_demo_exam, FALSE) = FALSE
               AND ea.submit_time IS NOT NULL
-              AND ea.start_time <= GETDATE()
-              AND ea.submit_time <= GETDATE()
+              AND ea.start_time <= NOW()
+              AND ea.submit_time <= NOW()
               AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
         `;
 
@@ -1597,7 +1605,7 @@ const submitAttemptReview = async (req, res) => {
                 JOIN questions q ON q.id = a.question_id
                 WHERE a.id = ${answerId}
                   AND a.attempt_id = ${attemptId}
-                  AND UPPER(LTRIM(RTRIM(ISNULL(q.question_type, '')))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
+                  AND UPPER(TRIM(COALESCE(q.question_type, ''))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
             `;
 
             const ownedAnswer = ownershipCheck.recordset[0];
@@ -1618,21 +1626,21 @@ const submitAttemptReview = async (req, res) => {
                     awarded_marks = ${awardedMarks},
                     review_feedback = ${reviewFeedback},
                     reviewed_by = ${req.user.id},
-                    reviewed_at = GETDATE()
+                    reviewed_at = NOW()
                 WHERE id = ${answerId}
                   AND attempt_id = ${attemptId}
             `;
         }
 
         const totalScoreResult = await new sql.Request(transaction).query`
-            SELECT ISNULL(SUM(
+            SELECT COALESCE(SUM(
                 CASE
-                    WHEN UPPER(LTRIM(RTRIM(ISNULL(q.question_type, '')))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
-                        THEN ISNULL(a.awarded_marks, 0)
-                    WHEN UPPER(LTRIM(RTRIM(ISNULL(q.question_type, '')))) = 'MCQ' AND o.is_correct = 1
+                    WHEN UPPER(TRIM(COALESCE(q.question_type, ''))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
+                        THEN COALESCE(a.awarded_marks, 0)
+                    WHEN UPPER(TRIM(COALESCE(q.question_type, ''))) = 'MCQ' AND o.is_correct = 1
                         THEN q.marks
-                    WHEN UPPER(LTRIM(RTRIM(ISNULL(q.question_type, '')))) IN ('TRUEFALSE', 'TRUE_FALSE', 'TRUE-FALSE')
-                        AND LOWER(LTRIM(RTRIM(ISNULL(a.text_answer, '')))) = LOWER(LTRIM(RTRIM(ISNULL(q.correct_answer, ''))))
+                    WHEN UPPER(TRIM(COALESCE(q.question_type, ''))) IN ('TRUEFALSE', 'TRUE_FALSE', 'TRUE-FALSE')
+                        AND LOWER(TRIM(COALESCE(a.text_answer, ''))) = LOWER(TRIM(COALESCE(q.correct_answer, '')))
                         THEN q.marks
                     ELSE 0
                 END
@@ -1685,14 +1693,14 @@ const getLiveMonitor = async (req, res) => {
                 d.name AS department_name,
                 b.name AS branch_name,
                 u2.name AS university_name,
-                ${hasFaculties ? 'f.name AS faculty_name,' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name,'}
+                ${hasFaculties ? 'f.name AS faculty_name,' : 'CAST(NULL AS TEXT) AS faculty_name,'}
                 u.name AS student_name,
                 u.email AS student_email,
                 ea.start_time,
                 ea.session_last_seen,
-                DATEDIFF(SECOND, ea.session_last_seen, GETDATE()) AS last_seen_seconds,
-                ISNULL(v.total_violations, 0) AS violations_count,
-                ISNULL(v.violation_summary, '') AS violation_summary
+                EXTRACT(EPOCH FROM (NOW() - ea.session_last_seen))::int AS last_seen_seconds,
+                COALESCE(v.total_violations, 0) AS violations_count,
+                COALESCE(v.violation_summary, '') AS violation_summary
             FROM exam_attempts ea
             JOIN exams e ON e.id = ea.exam_id
             JOIN users u ON u.id = ea.student_id
@@ -1701,18 +1709,18 @@ const getLiveMonitor = async (req, res) => {
             LEFT JOIN branches b ON d.branch_id = b.id
             LEFT JOIN universities u2 ON b.university_id = u2.id
             ${hasFaculties ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
-            OUTER APPLY (
+            LEFT JOIN LATERAL (
                 SELECT
-                    ISNULL(SUM(pv.count), 0) AS total_violations,
-                    ISNULL(STRING_AGG(CONCAT(pv.violation_type, ': ', pv.count), ', '), '') AS violation_summary
+                    COALESCE(SUM(pv.count), 0) AS total_violations,
+                    COALESCE(STRING_AGG(CONCAT(pv.violation_type, ': ', pv.count), ', '), '') AS violation_summary
                 FROM proctoring_violations pv
                 WHERE pv.attempt_id = ea.id
-            ) v
+            ) v ON TRUE
             WHERE e.created_by = ${req.user.id}
-              AND ISNULL(e.is_demo_exam, 0) = 0
+              AND COALESCE(e.is_demo_exam, FALSE) = FALSE
               AND ea.submit_time IS NULL
-              AND ea.start_time <= GETDATE()
-              AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+              AND ea.start_time <= NOW()
+              AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
               AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
             ORDER BY ea.start_time DESC, ea.id DESC
         `;

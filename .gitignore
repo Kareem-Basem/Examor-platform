@@ -20,3 +20,6 @@ coverage/
 
 # Vercel
 .vercel/
+
+# Local SQL dumps
+Copy from SQL.sql

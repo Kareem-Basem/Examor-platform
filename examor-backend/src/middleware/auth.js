@@ -4,9 +4,9 @@ const { sql } = require('../config/db');
 const hasIsActiveColumn = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'users'
-          AND COLUMN_NAME = 'is_active'
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = 'is_active'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -29,28 +29,28 @@ const verifyToken = async (req, res, next) => {
         const [hasSessionIdColumn, hasSessionLastSeenColumn] = await Promise.all([
             sql.query`
                 SELECT COUNT(*) AS total
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = 'users'
-                  AND COLUMN_NAME = 'active_session_id'
+                FROM information_schema.columns
+                WHERE table_name = 'users'
+                  AND column_name = 'active_session_id'
             `,
             sql.query`
                 SELECT COUNT(*) AS total
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = 'users'
-                  AND COLUMN_NAME = 'active_session_last_seen'
+                FROM information_schema.columns
+                WHERE table_name = 'users'
+                  AND column_name = 'active_session_last_seen'
             `
         ]);
         const sessionColumnsExist = Number(hasSessionIdColumn.recordset[0]?.total || 0) > 0 && Number(hasSessionLastSeenColumn.recordset[0]?.total || 0) > 0;
         const userResult = activeColumnExists
             ? await sql.query`
                 SELECT id, role, is_active,
-                       ${sessionColumnsExist ? 'active_session_id, active_session_last_seen' : 'CAST(NULL AS NVARCHAR(128)) AS active_session_id, CAST(NULL AS DATETIME) AS active_session_last_seen'}
+                       ${sessionColumnsExist ? 'active_session_id, active_session_last_seen' : 'CAST(NULL AS TEXT) AS active_session_id, CAST(NULL AS TIMESTAMP) AS active_session_last_seen'}
                 FROM users
                 WHERE id = ${decoded.id}
             `
             : await sql.query`
                 SELECT id, role,
-                       ${sessionColumnsExist ? 'active_session_id, active_session_last_seen' : 'CAST(NULL AS NVARCHAR(128)) AS active_session_id, CAST(NULL AS DATETIME) AS active_session_last_seen'}
+                       ${sessionColumnsExist ? 'active_session_id, active_session_last_seen' : 'CAST(NULL AS TEXT) AS active_session_id, CAST(NULL AS TIMESTAMP) AS active_session_last_seen'}
                 FROM users
                 WHERE id = ${decoded.id}
             `;
@@ -84,7 +84,7 @@ const verifyToken = async (req, res, next) => {
             if (dbSessionId && tokenSessionId && dbSessionId === tokenSessionId) {
                 await sql.query`
                     UPDATE users
-                    SET active_session_last_seen = GETDATE()
+                    SET active_session_last_seen = NOW()
                     WHERE id = ${currentUser.id}
                 `;
             }

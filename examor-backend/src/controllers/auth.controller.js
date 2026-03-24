@@ -11,9 +11,9 @@ const ACCOUNT_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const hasIsActiveColumn = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'users'
-          AND COLUMN_NAME = 'is_active'
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = 'is_active'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -22,9 +22,9 @@ const hasIsActiveColumn = async () => {
 const hasFacultyHierarchy = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'departments'
-          AND COLUMN_NAME = 'faculty_id'
+        FROM information_schema.columns
+        WHERE table_name = 'departments'
+          AND column_name = 'faculty_id'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -33,9 +33,9 @@ const hasFacultyHierarchy = async () => {
 const hasUserColumn = async (columnName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'users'
-          AND COLUMN_NAME = ${columnName}
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = ${columnName}
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -44,9 +44,9 @@ const hasUserColumn = async (columnName) => {
 const hasExamColumn = async (columnName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'exams'
-          AND COLUMN_NAME = ${columnName}
+        FROM information_schema.columns
+        WHERE table_name = 'exams'
+          AND column_name = ${columnName}
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -55,9 +55,9 @@ const hasExamColumn = async (columnName) => {
 const hasTable = async (tableName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_NAME = ${tableName}
-          AND TABLE_TYPE = 'BASE TABLE'
+        FROM information_schema.tables
+        WHERE table_name = ${tableName}
+          AND table_type = 'BASE TABLE'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -66,9 +66,9 @@ const hasTable = async (tableName) => {
 const hasColumn = async (tableName, columnName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = ${tableName}
-          AND COLUMN_NAME = ${columnName}
+        FROM information_schema.columns
+        WHERE table_name = ${tableName}
+          AND column_name = ${columnName}
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -77,9 +77,9 @@ const hasColumn = async (tableName, columnName) => {
 const hasQuestionOrderColumn = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'questions'
-          AND COLUMN_NAME = 'question_order'
+        FROM information_schema.columns
+        WHERE table_name = 'questions'
+          AND column_name = 'question_order'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -153,16 +153,16 @@ const getUserProfileById = async (userId) => {
             u.profile_mode,
             u.university_id,
             u.department_id,
-            ${activeColumnExists ? 'u.is_active' : 'CAST(1 AS BIT) AS is_active'},
-            ${hasPhoneColumn ? 'u.phone_number' : 'CAST(NULL AS NVARCHAR(30)) AS phone_number'},
-            ${hasAcademicYearColumn ? 'u.academic_year' : 'CAST(NULL AS NVARCHAR(100)) AS academic_year'},
-            ${hasBioColumn ? 'u.bio' : 'CAST(NULL AS NVARCHAR(MAX)) AS bio'},
-            ${hasAcademicVerifiedColumn ? 'u.academic_verified' : 'CAST(0 AS BIT) AS academic_verified'},
-            ${hasAcademicEmailConfirmedColumn ? 'u.academic_email_confirmed' : 'CAST(0 AS BIT) AS academic_email_confirmed'},
+            ${activeColumnExists ? 'u.is_active' : 'CAST(TRUE AS BOOLEAN) AS is_active'},
+            ${hasPhoneColumn ? 'u.phone_number' : 'CAST(NULL AS TEXT) AS phone_number'},
+            ${hasAcademicYearColumn ? 'u.academic_year' : 'CAST(NULL AS TEXT) AS academic_year'},
+            ${hasBioColumn ? 'u.bio' : 'CAST(NULL AS TEXT) AS bio'},
+            ${hasAcademicVerifiedColumn ? 'u.academic_verified' : 'CAST(FALSE AS BOOLEAN) AS academic_verified'},
+            ${hasAcademicEmailConfirmedColumn ? 'u.academic_email_confirmed' : 'CAST(FALSE AS BOOLEAN) AS academic_email_confirmed'},
             un.name AS university_name,
             b.name AS branch_name,
             d.name AS department_name,
-            ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'}
+            ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'}
         FROM users u
         LEFT JOIN universities un ON u.university_id = un.id
         LEFT JOIN departments d ON u.department_id = d.id
@@ -215,7 +215,7 @@ const createAuthSessionAndToken = async (user) => {
             UPDATE users
             SET
                 active_session_id = ${sessionId},
-                active_session_last_seen = GETDATE()
+                active_session_last_seen = NOW()
             WHERE id = ${user.id}
         `;
     }
@@ -286,7 +286,7 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
         const [examColumnsResult, hasQuestionOrder, hasQuestionsTable, hasOptionsTable, hasAnswersTable, hasAttemptsTable] = await Promise.all([
             sql.query`
                 SELECT COLUMN_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
+                FROM information_schema.columns
                 WHERE TABLE_NAME = 'exams'
             `,
             hasQuestionOrderColumn(),
@@ -312,12 +312,13 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             : 'Demo Exam (Student Onboarding)';
 
         const existing = await sql.query`
-            SELECT TOP 1 id, duration, total_marks
+            SELECT id, duration, total_marks
             FROM exams
             WHERE created_by = ${numericUserId}
-              AND ISNULL(is_demo_exam, 0) = 1
+              AND COALESCE(is_demo_exam, FALSE) = TRUE
               AND title = ${examTitle}
             ORDER BY id DESC
+            LIMIT 1
         `;
 
         const examCode = `DEMO-${examPrefix}-${numericUserId}-${Date.now().toString(36).slice(-5).toUpperCase()}`;
@@ -372,11 +373,11 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             if (hasExamCol('post_end_visibility_mode')) updates.push('post_end_visibility_mode = @postEndVisibilityMode');
             if (hasExamCol('post_end_grace_minutes')) updates.push('post_end_grace_minutes = @postEndGraceMinutes');
             if (hasExamCol('max_attempts_per_student')) updates.push('max_attempts_per_student = @maxAttempts');
-            if (hasExamCol('allow_custom_exam_code')) updates.push('allow_custom_exam_code = 0');
+            if (hasExamCol('allow_custom_exam_code')) updates.push('allow_custom_exam_code = FALSE');
             if (hasExamCol('screen_capture_protection')) updates.push('screen_capture_protection = @screenProtection');
-            if (hasExamCol('is_demo_exam')) updates.push('is_demo_exam = 1');
-            if (hasRandomizeQuestions) updates.push('randomize_questions = 1');
-            if (hasRandomizeOptions) updates.push('randomize_options = 1');
+            if (hasExamCol('is_demo_exam')) updates.push('is_demo_exam = TRUE');
+            if (hasRandomizeQuestions) updates.push('randomize_questions = TRUE');
+            if (hasRandomizeOptions) updates.push('randomize_options = TRUE');
 
             if (updates.length > 0) {
                 updateRequest.input('proctoringEnabled', sql.Bit, demoProctoringEnabled);
@@ -415,11 +416,11 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             if (hasExamCol('post_end_visibility_mode')) { examColumns.push('post_end_visibility_mode'); examValues.push('@postEndVisibilityMode'); }
             if (hasExamCol('post_end_grace_minutes')) { examColumns.push('post_end_grace_minutes'); examValues.push('@postEndGraceMinutes'); }
             if (hasExamCol('max_attempts_per_student')) { examColumns.push('max_attempts_per_student'); examValues.push('@maxAttempts'); }
-            if (hasExamCol('allow_custom_exam_code')) { examColumns.push('allow_custom_exam_code'); examValues.push('0'); }
+            if (hasExamCol('allow_custom_exam_code')) { examColumns.push('allow_custom_exam_code'); examValues.push('FALSE'); }
             if (hasExamCol('screen_capture_protection')) { examColumns.push('screen_capture_protection'); examValues.push('@screenProtection'); }
-            if (hasExamCol('is_demo_exam')) { examColumns.push('is_demo_exam'); examValues.push('1'); }
-            if (hasRandomizeQuestions) { examColumns.push('randomize_questions'); examValues.push('1'); }
-            if (hasRandomizeOptions) { examColumns.push('randomize_options'); examValues.push('1'); }
+            if (hasExamCol('is_demo_exam')) { examColumns.push('is_demo_exam'); examValues.push('TRUE'); }
+            if (hasRandomizeQuestions) { examColumns.push('randomize_questions'); examValues.push('TRUE'); }
+            if (hasRandomizeOptions) { examColumns.push('randomize_options'); examValues.push('TRUE'); }
 
             if (examColumns.length === 0) return;
 
@@ -428,8 +429,8 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
 
             const examInsertQuery = `
                 INSERT INTO exams (${examColumns.join(', ')})
-                OUTPUT INSERTED.id AS id
                 VALUES (${examValues.join(', ')})
+                RETURNING id
             `;
 
             const examInsertResult = await examInsertRequest.query(examInsertQuery);
@@ -443,7 +444,7 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             SELECT id
             FROM exams
             WHERE created_by = ${numericUserId}
-              AND ISNULL(is_demo_exam, 0) = 1
+              AND COALESCE(is_demo_exam, FALSE) = TRUE
               AND title = ${examTitle}
               AND id <> ${demoExamId}
         `;
@@ -452,10 +453,10 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             if (!dupId) continue;
             if (hasAnswersTable) {
                 await sql.query`
-                    DELETE a
-                    FROM answers a
-                    INNER JOIN exam_attempts ea ON ea.id = a.attempt_id
-                    WHERE ea.exam_id = ${dupId}
+                    DELETE FROM answers a
+                    USING exam_attempts ea
+                    WHERE ea.id = a.attempt_id
+                      AND ea.exam_id = ${dupId}
                 `;
             }
             if (hasAttemptsTable) {
@@ -466,10 +467,10 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             }
             if (hasOptionsTable) {
                 await sql.query`
-                    DELETE o
-                    FROM options o
-                    INNER JOIN questions q ON q.id = o.question_id
-                    WHERE q.exam_id = ${dupId}
+                    DELETE FROM options o
+                    USING questions q
+                    WHERE q.id = o.question_id
+                      AND q.exam_id = ${dupId}
                 `;
             }
             await sql.query`
@@ -486,10 +487,10 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
 
         if (hasAnswersTable) {
             await sql.query`
-                DELETE a
-                FROM answers a
-                INNER JOIN exam_attempts ea ON ea.id = a.attempt_id
-                WHERE ea.exam_id = ${demoExamId}
+                DELETE FROM answers a
+                USING exam_attempts ea
+                WHERE ea.id = a.attempt_id
+                  AND ea.exam_id = ${demoExamId}
             `;
         }
 
@@ -502,10 +503,10 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
 
         if (hasOptionsTable) {
             await sql.query`
-                DELETE o
-                FROM options o
-                INNER JOIN questions q ON q.id = o.question_id
-                WHERE q.exam_id = ${demoExamId}
+                DELETE FROM options o
+                USING questions q
+                WHERE q.id = o.question_id
+                  AND q.exam_id = ${demoExamId}
             `;
         }
 
@@ -575,13 +576,13 @@ const createDemoExamIfMissing = async ({ userId, role, userName }) => {
             const questionInsertQuery = hasQuestionOrder
                 ? `
                     INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
-                    OUTPUT INSERTED.id AS id
                     VALUES (@examId, @questionText, @questionType, @marks, @correctAnswer, @questionOrder)
+                    RETURNING id
                 `
                 : `
                     INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
-                    OUTPUT INSERTED.id AS id
                     VALUES (@examId, @questionText, @questionType, @marks, @correctAnswer)
+                    RETURNING id
                 `;
 
             const questionInsertResult = await questionRequest.query(questionInsertQuery);
@@ -698,8 +699,8 @@ const register = async (req, res) => {
 
         const insertResult = await sql.query`
             INSERT INTO users (name, email, password, role, university_id, department_id, profile_mode)
-            OUTPUT INSERTED.id AS id
             VALUES (${nameValue}, ${emailValue}, ${hashedPassword}, ${roleValue}, ${normalizedUniversityId || null}, ${departmentId || null}, ${derivedProfileMode})
+            RETURNING id
         `;
 
         const insertedUserId = Number(insertResult.recordset[0]?.id || 0);
@@ -708,8 +709,8 @@ const register = async (req, res) => {
         if (insertedUserId > 0 && (hasAcademicVerifiedColumn || hasAcademicEmailConfirmedColumn)) {
             const request = new sql.Request();
             request.input('userId', sql.Int, insertedUserId);
-            request.input('academicVerified', sql.Bit, shouldAutoVerifyAcademic ? 1 : 0);
-            request.input('academicEmailConfirmed', sql.Bit, shouldAutoVerifyAcademic ? 1 : 0);
+            request.input('academicVerified', sql.Bit, shouldAutoVerifyAcademic ? true : false);
+            request.input('academicEmailConfirmed', sql.Bit, shouldAutoVerifyAcademic ? true : false);
 
             const updates = [];
             if (hasAcademicVerifiedColumn) updates.push('academic_verified = @academicVerified');
@@ -745,8 +746,8 @@ const register = async (req, res) => {
 const getPublicStats = async (_req, res) => {
     try {
         const hasDemoExamColumn = await hasExamColumn('is_demo_exam');
-        const demoExamFilter = hasDemoExamColumn ? 'WHERE ISNULL(is_demo_exam, 0) = 0' : '';
-        const attemptsDemoFilter = hasDemoExamColumn ? 'AND ISNULL(e.is_demo_exam, 0) = 0' : '';
+        const demoExamFilter = hasDemoExamColumn ? 'WHERE COALESCE(is_demo_exam, FALSE) = FALSE' : '';
+        const attemptsDemoFilter = hasDemoExamColumn ? 'AND COALESCE(e.is_demo_exam, FALSE) = FALSE' : '';
         const [users, institutions, exams, completedAttempts] = await Promise.all([
             sql.query`SELECT COUNT(*) AS total FROM users`,
             sql.query`SELECT COUNT(*) AS total FROM universities`,
@@ -760,8 +761,8 @@ const getPublicStats = async (_req, res) => {
                 FROM exam_attempts ea
                 JOIN exams e ON e.id = ea.exam_id
                 WHERE ea.submit_time IS NOT NULL
-                  AND ea.start_time <= GETDATE()
-                  AND ea.submit_time <= GETDATE()
+                  AND ea.start_time <= NOW()
+                  AND ea.submit_time <= NOW()
                   AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
                   ${attemptsDemoFilter}
             `)
@@ -840,7 +841,7 @@ const getPublicDepartments = async (_req, res) => {
             SELECT d.*,
                    b.name AS branch_name,
                    u.name AS university_name,
-                   ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'}
+                   ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'}
             FROM departments d
             JOIN branches b ON d.branch_id = b.id
             JOIN universities u ON b.university_id = u.id
@@ -977,8 +978,8 @@ const googleLogin = async (req, res) => {
 
             const insertResult = await sql.query`
                 INSERT INTO users (name, email, password, role, profile_mode)
-                OUTPUT INSERTED.id AS id
                 VALUES (${googleUser.name}, ${googleUser.email}, ${hashedPassword}, ${roleValue}, ${teacherProfileMode})
+                RETURNING id
             `;
 
             const insertedUserId = Number(insertResult.recordset[0]?.id || 0);
@@ -987,8 +988,8 @@ const googleLogin = async (req, res) => {
             if (insertedUserId > 0 && (hasAcademicVerifiedColumn || hasAcademicEmailConfirmedColumn)) {
                 const request = new sql.Request();
                 request.input('userId', sql.Int, insertedUserId);
-                request.input('academicVerified', sql.Bit, shouldAutoVerifyAcademic ? 1 : 0);
-                request.input('academicEmailConfirmed', sql.Bit, shouldAutoVerifyAcademic ? 1 : 0);
+                request.input('academicVerified', sql.Bit, shouldAutoVerifyAcademic ? true : false);
+                request.input('academicEmailConfirmed', sql.Bit, shouldAutoVerifyAcademic ? true : false);
 
                 const updates = [];
                 if (hasAcademicVerifiedColumn) updates.push('academic_verified = @academicVerified');
@@ -1117,25 +1118,25 @@ const getMyActivity = async (req, res) => {
 
         if (role === 'student') {
             const result = await sql.query`
-                SELECT TOP 20 *
+                SELECT *
                 FROM (
                     SELECT
-                        CAST('exam_started' AS NVARCHAR(50)) AS activity_type,
+                        CAST('exam_started' AS TEXT) AS activity_type,
                         ea.start_time AS occurred_at,
                         e.title AS subject_title,
                         e.exam_code AS exam_code,
-                        CAST(NULL AS NVARCHAR(255)) AS extra_text
+                        CAST(NULL AS TEXT) AS extra_text
                     FROM exam_attempts ea
                     JOIN exams e ON e.id = ea.exam_id
                     WHERE ea.student_id = ${req.user.id}
                       AND ea.start_time IS NOT NULL
-                      AND ea.start_time <= GETDATE()
+                      AND ea.start_time <= NOW()
 
                     UNION ALL
 
                     SELECT
                         CASE
-                            WHEN ea.forced_submit = 1 THEN 'exam_force_submitted'
+                            WHEN ea.forced_submit = TRUE THEN 'exam_force_submitted'
                             ELSE 'exam_submitted'
                         END AS activity_type,
                         ea.submit_time AS occurred_at,
@@ -1144,26 +1145,27 @@ const getMyActivity = async (req, res) => {
                         CAST(
                             CASE
                                 WHEN ea.score IS NULL THEN NULL
-                                ELSE CONCAT(CAST(CAST(ea.score AS DECIMAL(10,2)) AS NVARCHAR(50)), ' / ', CAST(CAST(e.total_marks AS DECIMAL(10,2)) AS NVARCHAR(50)))
+                                ELSE CONCAT(CAST(CAST(ea.score AS DECIMAL(10,2)) AS TEXT), ' / ', CAST(CAST(e.total_marks AS DECIMAL(10,2)) AS TEXT))
                             END
-                        AS NVARCHAR(255)) AS extra_text
+                        AS TEXT) AS extra_text
                     FROM exam_attempts ea
                     JOIN exams e ON e.id = ea.exam_id
                     WHERE ea.student_id = ${req.user.id}
                       AND ea.submit_time IS NOT NULL
-                      AND ea.submit_time <= GETDATE()
+                      AND ea.submit_time <= NOW()
                       AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
                 ) activity_feed
                 ORDER BY occurred_at DESC
+                LIMIT 20
             `;
 
             activities = result.recordset;
         } else if (role === 'teacher') {
             const result = await sql.query`
-                SELECT TOP 20 *
+                SELECT *
                 FROM (
                     SELECT
-                        CAST('exam_created' AS NVARCHAR(50)) AS activity_type,
+                        CAST('exam_created' AS TEXT) AS activity_type,
                         e.created_at AS occurred_at,
                         e.title AS subject_title,
                         e.exam_code AS exam_code,
@@ -1172,7 +1174,7 @@ const getMyActivity = async (req, res) => {
                                 WHEN e.access_mode = 'link' THEN 'link'
                                 ELSE 'department'
                             END
-                        AS NVARCHAR(255)) AS extra_text
+                        AS TEXT) AS extra_text
                     FROM exams e
                     WHERE e.created_by = ${req.user.id}
                       AND e.created_at IS NOT NULL
@@ -1180,11 +1182,11 @@ const getMyActivity = async (req, res) => {
                     UNION ALL
 
                     SELECT
-                        CAST('question_saved_to_bank' AS NVARCHAR(50)) AS activity_type,
+                        CAST('question_saved_to_bank' AS TEXT) AS activity_type,
                         qb.created_at AS occurred_at,
                         LEFT(qb.question_text, 140) AS subject_title,
-                        CAST(NULL AS NVARCHAR(255)) AS exam_code,
-                        CAST(qb.question_type AS NVARCHAR(255)) AS extra_text
+                        CAST(NULL AS TEXT) AS exam_code,
+                        CAST(qb.question_type AS TEXT) AS extra_text
                     FROM question_bank qb
                     WHERE qb.doctor_id = ${req.user.id}
                       AND qb.created_at IS NOT NULL
@@ -1193,22 +1195,23 @@ const getMyActivity = async (req, res) => {
 
                     SELECT
                         CASE
-                            WHEN ea.forced_submit = 1 THEN 'attempt_force_submitted'
+                            WHEN ea.forced_submit = TRUE THEN 'attempt_force_submitted'
                             ELSE 'attempt_submitted'
                         END AS activity_type,
                         ea.submit_time AS occurred_at,
                         e.title AS subject_title,
                         e.exam_code AS exam_code,
-                        CAST(student_user.name AS NVARCHAR(255)) AS extra_text
+                        CAST(student_user.name AS TEXT) AS extra_text
                     FROM exam_attempts ea
                     JOIN exams e ON e.id = ea.exam_id
                     JOIN users student_user ON student_user.id = ea.student_id
                     WHERE e.created_by = ${req.user.id}
                       AND ea.submit_time IS NOT NULL
-                      AND ea.submit_time <= GETDATE()
+                      AND ea.submit_time <= NOW()
                       AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
                 ) activity_feed
                 ORDER BY occurred_at DESC
+                LIMIT 20
             `;
 
             activities = result.recordset;

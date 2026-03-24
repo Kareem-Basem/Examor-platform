@@ -3,9 +3,9 @@ const { sql } = require('../config/db');
 const hasUserColumn = async (columnName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'users'
-          AND COLUMN_NAME = ${columnName}
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = ${columnName}
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -24,9 +24,10 @@ const requireAcademicVerification = async (req, res, next) => {
         if (!hasProfileModeColumn || !hasAcademicVerifiedColumn) return next();
 
         const result = await sql.query`
-            SELECT TOP 1 profile_mode, academic_verified
+            SELECT profile_mode, academic_verified
             FROM users
             WHERE id = ${req.user.id}
+            LIMIT 1
         `;
 
         const user = result.recordset[0];

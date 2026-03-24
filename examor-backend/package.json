@@ -2,10 +2,10 @@
   "name": "examor-backend",
   "version": "1.0.0",
   "description": "Online Examination Platform API",
-  "main": "src/app.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
     "check": "node scripts/smoke-check.js"
   },
   "dependencies": {
@@ -17,10 +17,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.0",
     "morgan": "^1.10.0",
-    "mssql": "^10.0.1",
     "@sentry/node": "^8.19.0",
-    "msnodesqlv8": "^4.0.0",
-    "tedious": "^16.0.0"
+    "pg": "^8.12.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

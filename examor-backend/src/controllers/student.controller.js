@@ -37,9 +37,9 @@ const SESSION_TTL_SECONDS = 45;
 const hasFacultyHierarchy = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'departments'
-          AND COLUMN_NAME = 'faculty_id'
+        FROM information_schema.columns
+        WHERE table_name = 'departments'
+          AND column_name = 'faculty_id'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -48,9 +48,9 @@ const hasFacultyHierarchy = async () => {
 const hasExamRandomizationColumns = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'exams'
-          AND COLUMN_NAME IN ('randomize_questions', 'randomize_options')
+        FROM information_schema.columns
+        WHERE table_name = 'exams'
+          AND column_name IN ('randomize_questions', 'randomize_options')
     `;
 
     return Number(result.recordset[0]?.total || 0) === 2;
@@ -59,9 +59,9 @@ const hasExamRandomizationColumns = async () => {
 const hasAttemptRandomizationColumns = async () => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = 'exam_attempts'
-          AND COLUMN_NAME IN ('question_order_json', 'option_order_json')
+        FROM information_schema.columns
+        WHERE table_name = 'exam_attempts'
+          AND column_name IN ('question_order_json', 'option_order_json')
     `;
 
     return Number(result.recordset[0]?.total || 0) === 2;
@@ -191,62 +191,64 @@ const getExamMeta = async (code, studentId) => {
                 e.total_marks, e.exam_code,
                 e.start_date, e.end_date,
                 e.access_mode,
-                ISNULL(e.max_attempts_per_student, 1) AS max_attempts_per_student,
-                ISNULL(e.proctoring_enabled, 1) AS proctoring_enabled,
-                ISNULL(e.screen_capture_protection, 0) AS screen_capture_protection,
-                ISNULL(e.post_end_visibility_mode, 'hide') AS post_end_visibility_mode,
-                ISNULL(e.post_end_grace_minutes, 0) AS post_end_grace_minutes,
-                ISNULL(e.is_demo_exam, 0) AS is_demo_exam,
-                ${examRandomizationEnabled ? 'e.randomize_questions, e.randomize_options,' : 'CAST(0 AS bit) AS randomize_questions, CAST(0 AS bit) AS randomize_options,'}
+                COALESCE(e.max_attempts_per_student, 1) AS max_attempts_per_student,
+                COALESCE(e.proctoring_enabled, TRUE) AS proctoring_enabled,
+                COALESCE(e.screen_capture_protection, FALSE) AS screen_capture_protection,
+                COALESCE(e.post_end_visibility_mode, 'hide') AS post_end_visibility_mode,
+                COALESCE(e.post_end_grace_minutes, 0) AS post_end_grace_minutes,
+                COALESCE(e.is_demo_exam, FALSE) AS is_demo_exam,
+                ${examRandomizationEnabled ? 'e.randomize_questions, e.randomize_options,' : 'CAST(FALSE AS BOOLEAN) AS randomize_questions, CAST(FALSE AS BOOLEAN) AS randomize_options,'}
                 c.name AS course_name,
                 ongoing_attempt.id AS current_attempt_id,
                 ongoing_attempt.start_time AS current_attempt_start_time,
-                ${attemptRandomizationEnabled ? 'ongoing_attempt.question_order_json AS current_question_order_json, ongoing_attempt.option_order_json AS current_option_order_json,' : 'CAST(NULL AS NVARCHAR(MAX)) AS current_question_order_json, CAST(NULL AS NVARCHAR(MAX)) AS current_option_order_json,'}
+                ${attemptRandomizationEnabled ? 'ongoing_attempt.question_order_json AS current_question_order_json, ongoing_attempt.option_order_json AS current_option_order_json,' : 'CAST(NULL AS TEXT) AS current_question_order_json, CAST(NULL AS TEXT) AS current_option_order_json,'}
                 completed_attempt.id AS completed_attempt_id,
                 completed_attempt.total_completed_attempts AS total_completed_attempts
             FROM exams e
             LEFT JOIN courses c ON e.course_id = c.id
             JOIN users student ON student.id = @studentId
-            OUTER APPLY (
-                SELECT TOP 1 ea.id, ea.start_time
+            LEFT JOIN LATERAL (
+                SELECT ea.id, ea.start_time
                        ${attemptRandomizationEnabled ? ', ea.question_order_json, ea.option_order_json' : ''}
                 FROM exam_attempts ea
                 WHERE ea.exam_id = e.id
                   AND ea.student_id = @studentId
                   AND ea.submit_time IS NULL
-                  AND ea.start_time <= GETDATE()
+                  AND ea.start_time <= NOW()
                 ORDER BY ea.start_time DESC, ea.id DESC
-            ) ongoing_attempt
-            OUTER APPLY (
-                SELECT TOP 1
+                LIMIT 1
+            ) ongoing_attempt ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
                        ea.id,
                        completed_stats.total_completed_attempts
                 FROM exam_attempts ea
-                CROSS APPLY (
+                LEFT JOIN LATERAL (
                     SELECT COUNT(*) AS total_completed_attempts
                     FROM exam_attempts ea_count
                     WHERE ea_count.exam_id = e.id
                       AND ea_count.student_id = @studentId
                       AND ea_count.submit_time IS NOT NULL
                       AND (e.start_date IS NULL OR ea_count.submit_time >= e.start_date)
-                      AND ea_count.submit_time <= GETDATE()
-                ) completed_stats
+                      AND ea_count.submit_time <= NOW()
+                ) completed_stats ON TRUE
                 WHERE ea.exam_id = e.id
                   AND ea.student_id = @studentId
                   AND ea.submit_time IS NOT NULL
                   AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
-                  AND ea.submit_time <= GETDATE()
+                  AND ea.submit_time <= NOW()
                 ORDER BY ea.submit_time DESC, ea.id DESC
-            ) completed_attempt
+                LIMIT 1
+            ) completed_attempt ON TRUE
             WHERE e.exam_code = @examCode
               AND student.role = 'student'
               AND (
                   (
-                      ISNULL(e.is_demo_exam, 0) = 1
+                      COALESCE(e.is_demo_exam, FALSE) = TRUE
                       AND e.created_by = student.id
                   )
                   OR (
-                      ISNULL(e.is_demo_exam, 0) = 0
+                      COALESCE(e.is_demo_exam, FALSE) = FALSE
                       AND (
                           e.access_mode = 'link'
                           OR (
@@ -258,7 +260,7 @@ const getExamMeta = async (code, studentId) => {
                   )
               )
         )
-        SELECT TOP 1 *
+        SELECT *
         FROM candidate_exams
         ORDER BY
             CASE
@@ -268,15 +270,16 @@ const getExamMeta = async (code, studentId) => {
             END,
             CASE
                 WHEN end_date IS NULL THEN 0
-                WHEN end_date >= GETDATE() THEN 0
+                WHEN end_date >= NOW() THEN 0
                 ELSE 1
             END,
             CASE
                 WHEN start_date IS NULL THEN 0
-                WHEN start_date <= GETDATE() THEN 0
+                WHEN start_date <= NOW() THEN 0
                 ELSE 1
             END,
             id DESC
+        LIMIT 1
     `;
 
     const result = await request.query(query);
@@ -289,7 +292,7 @@ const getOpenAttemptSessionState = async (attemptId) => {
         SELECT
             session_token,
             session_last_seen,
-            DATEDIFF(SECOND, session_last_seen, GETDATE()) AS session_age_seconds
+            EXTRACT(EPOCH FROM (NOW() - session_last_seen))::INT AS session_age_seconds
         FROM exam_attempts
         WHERE id = ${attemptId}
           AND submit_time IS NULL
@@ -304,22 +307,22 @@ const getDoctorExamState = async (examId, doctorId) => {
             e.id,
             e.start_date,
             CASE
-                WHEN e.start_date IS NOT NULL AND e.start_date <= GETDATE() THEN CAST(1 AS bit)
-                ELSE CAST(0 AS bit)
+                WHEN e.start_date IS NOT NULL AND e.start_date <= NOW() THEN CAST(TRUE AS BOOLEAN)
+                ELSE CAST(FALSE AS BOOLEAN)
             END AS has_started,
             stats.total_attempts,
             stats.open_attempts
         FROM exams e
-        OUTER APPLY (
+        LEFT JOIN LATERAL (
             SELECT
                 COUNT(*) AS total_attempts,
                 SUM(CASE WHEN ea.submit_time IS NULL THEN 1 ELSE 0 END) AS open_attempts
             FROM exam_attempts ea
             WHERE ea.exam_id = e.id
-              AND ea.start_time <= GETDATE()
-              AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+              AND ea.start_time <= NOW()
+              AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
               AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
-        ) stats
+        ) stats ON TRUE
         WHERE e.id = ${examId}
           AND e.created_by = ${doctorId}
     `;
@@ -387,7 +390,7 @@ const claimAttemptSession = async ({ attemptId, sessionKey }) => {
         UPDATE exam_attempts
         SET
             session_token = ${normalizedSessionKey},
-            session_last_seen = GETDATE()
+            session_last_seen = NOW()
         WHERE id = ${attemptId}
           AND submit_time IS NULL
     `;
@@ -507,29 +510,29 @@ const getAvailableExams = async (req, res) => {
                 e.total_marks, e.exam_code,
                 e.start_date, e.end_date,
                 e.access_mode,
-                ISNULL(e.max_attempts_per_student, 1) AS max_attempts_per_student,
-                ISNULL(e.proctoring_enabled, 1) AS proctoring_enabled,
-                ISNULL(e.screen_capture_protection, 0) AS screen_capture_protection,
-                ISNULL(e.post_end_visibility_mode, 'hide') AS post_end_visibility_mode,
-                ISNULL(e.post_end_grace_minutes, 0) AS post_end_grace_minutes,
-                ISNULL(e.is_demo_exam, 0) AS is_demo_exam,
+                COALESCE(e.max_attempts_per_student, 1) AS max_attempts_per_student,
+                COALESCE(e.proctoring_enabled, TRUE) AS proctoring_enabled,
+                COALESCE(e.screen_capture_protection, FALSE) AS screen_capture_protection,
+                COALESCE(e.post_end_visibility_mode, 'hide') AS post_end_visibility_mode,
+                COALESCE(e.post_end_grace_minutes, 0) AS post_end_grace_minutes,
+                COALESCE(e.is_demo_exam, FALSE) AS is_demo_exam,
                 c.name AS course_name,
                 c.level,
                 d.name AS department_name,
                 b.name AS branch_name,
                 u.name AS university_name,
-                ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'},
+                ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'},
                 COUNT(q.id) AS questions_count,
-                CAST(CASE WHEN ongoing_attempt.id IS NOT NULL THEN 1 ELSE 0 END AS bit) AS has_open_attempt,
-                CAST(CASE WHEN completed_attempt.id IS NOT NULL THEN 1 ELSE 0 END AS bit) AS has_completed_attempt,
+                CAST(CASE WHEN ongoing_attempt.id IS NOT NULL THEN TRUE ELSE FALSE END AS BOOLEAN) AS has_open_attempt,
+                CAST(CASE WHEN completed_attempt.id IS NOT NULL THEN TRUE ELSE FALSE END AS BOOLEAN) AS has_completed_attempt,
                 CASE
-                    WHEN ISNULL(e.is_demo_exam, 0) = 1 THEN 'active'
+                    WHEN COALESCE(e.is_demo_exam, FALSE) = TRUE THEN 'active'
                     WHEN e.end_date IS NOT NULL
-                         AND e.end_date < GETDATE()
-                         AND ISNULL(e.post_end_visibility_mode, 'hide') = 'archive' THEN 'archived'
+                         AND e.end_date < NOW()
+                         AND COALESCE(e.post_end_visibility_mode, 'hide') = 'archive' THEN 'archived'
                     WHEN completed_attempt.id IS NOT NULL
-                         AND ISNULL(completed_attempt.total_completed_attempts, 0) >= ISNULL(e.max_attempts_per_student, 1) THEN 'completed'
-                    WHEN e.start_date IS NOT NULL AND e.start_date > GETDATE() THEN 'upcoming'
+                         AND COALESCE(completed_attempt.total_completed_attempts, 0) >= COALESCE(e.max_attempts_per_student, 1) THEN 'completed'
+                    WHEN e.start_date IS NOT NULL AND e.start_date > NOW() THEN 'upcoming'
                     WHEN ongoing_attempt.id IS NOT NULL THEN 'in_progress'
                     ELSE 'active'
                 END AS status
@@ -541,53 +544,55 @@ const getAvailableExams = async (req, res) => {
             ${hasFaculties ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
             JOIN users student ON student.id = ${req.user.id}
             LEFT JOIN questions q ON q.exam_id = e.id
-            OUTER APPLY (
-                SELECT TOP 1 ea.id
+            LEFT JOIN LATERAL (
+                SELECT ea.id
                 FROM exam_attempts ea
                 WHERE ea.exam_id = e.id
                   AND ea.student_id = ${req.user.id}
                   AND ea.submit_time IS NULL
-                  AND ea.start_time <= GETDATE()
+                  AND ea.start_time <= NOW()
                 ORDER BY ea.start_time DESC, ea.id DESC
-            ) ongoing_attempt
-            OUTER APPLY (
-                SELECT TOP 1
+                LIMIT 1
+            ) ongoing_attempt ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
                     ea.id,
                     completed_stats.total_completed_attempts
                 FROM exam_attempts ea
-                CROSS APPLY (
+                LEFT JOIN LATERAL (
                     SELECT COUNT(*) AS total_completed_attempts
                     FROM exam_attempts ea_count
                     WHERE ea_count.exam_id = e.id
                       AND ea_count.student_id = ${req.user.id}
                       AND ea_count.submit_time IS NOT NULL
                       AND (e.start_date IS NULL OR ea_count.submit_time >= e.start_date)
-                      AND ea_count.submit_time <= GETDATE()
-                ) completed_stats
+                      AND ea_count.submit_time <= NOW()
+                ) completed_stats ON TRUE
                 WHERE ea.exam_id = e.id
                   AND ea.student_id = ${req.user.id}
                   AND ea.submit_time IS NOT NULL
                   AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
-                  AND ea.submit_time <= GETDATE()
+                  AND ea.submit_time <= NOW()
                 ORDER BY ea.submit_time DESC, ea.id DESC
-            ) completed_attempt
+                LIMIT 1
+            ) completed_attempt ON TRUE
             WHERE (
                     e.end_date IS NULL
-                    OR e.end_date >= GETDATE()
-                    OR ISNULL(e.post_end_visibility_mode, 'hide') = 'archive'
+                    OR e.end_date >= NOW()
+                    OR COALESCE(e.post_end_visibility_mode, 'hide') = 'archive'
                     OR (
-                        ISNULL(e.post_end_grace_minutes, 0) > 0
-                        AND DATEADD(MINUTE, ISNULL(e.post_end_grace_minutes, 0), e.end_date) >= GETDATE()
+                        COALESCE(e.post_end_grace_minutes, 0) > 0
+                        AND e.end_date + (COALESCE(e.post_end_grace_minutes, 0) || ' minutes')::interval >= NOW()
                     )
                 )
               AND student.role = 'student'
               AND (
                   (
-                      ISNULL(e.is_demo_exam, 0) = 1
+                      COALESCE(e.is_demo_exam, FALSE) = TRUE
                       AND e.created_by = student.id
                   )
                   OR (
-                      ISNULL(e.is_demo_exam, 0) = 0
+                      COALESCE(e.is_demo_exam, FALSE) = FALSE
                       AND (
                           (
                               e.access_mode = 'link'
@@ -620,7 +625,7 @@ const getAvailableExams = async (req, res) => {
             ORDER BY
                 CASE
                     WHEN completed_attempt.id IS NOT NULL THEN 3
-                    WHEN e.start_date IS NOT NULL AND e.start_date > GETDATE() THEN 2
+                    WHEN e.start_date IS NOT NULL AND e.start_date > NOW() THEN 2
                     WHEN ongoing_attempt.id IS NOT NULL THEN 1
                     ELSE 0
                 END,
@@ -817,13 +822,13 @@ const startExam = async (req, res) => {
         const result = attemptRandomizationEnabled
             ? await sql.query`
                 INSERT INTO exam_attempts (exam_id, student_id, start_time, session_token, session_last_seen, question_order_json, option_order_json)
-                OUTPUT INSERTED.id, INSERTED.start_time
-                VALUES (${exam.id}, ${req.user.id}, GETDATE(), ${normalizeText(sessionKey) || null}, GETDATE(), ${questionOrderJson}, ${optionOrderJson})
+                VALUES (${exam.id}, ${req.user.id}, NOW(), ${normalizeText(sessionKey) || null}, NOW(), ${questionOrderJson}, ${optionOrderJson})
+                RETURNING id, start_time
             `
             : await sql.query`
                 INSERT INTO exam_attempts (exam_id, student_id, start_time, session_token, session_last_seen)
-                OUTPUT INSERTED.id, INSERTED.start_time
-                VALUES (${exam.id}, ${req.user.id}, GETDATE(), ${normalizeText(sessionKey) || null}, GETDATE())
+                VALUES (${exam.id}, ${req.user.id}, NOW(), ${normalizeText(sessionKey) || null}, NOW())
+                RETURNING id, start_time
             `;
 
         res.status(201).json({
@@ -866,8 +871,8 @@ const submitExam = async (req, res) => {
                 e.post_end_grace_minutes,
                 e.start_date,
                 e.end_date,
-                ISNULL(e.proctoring_enabled, 1) AS proctoring_enabled,
-                ISNULL(e.screen_capture_protection, 0) AS screen_capture_protection
+                COALESCE(e.proctoring_enabled, TRUE) AS proctoring_enabled,
+                COALESCE(e.screen_capture_protection, FALSE) AS screen_capture_protection
             FROM exam_attempts ea
             JOIN exams e ON ea.exam_id = e.id
             WHERE ea.id = ${attemptId}
@@ -1003,9 +1008,9 @@ const submitExam = async (req, res) => {
         await createTxRequest(transaction).query`
             UPDATE exam_attempts
             SET
-                submit_time = GETDATE(),
+                submit_time = NOW(),
                 score = ${score},
-                forced_submit = ${shouldForceSubmit ? 1 : 0},
+                forced_submit = ${shouldForceSubmit},
                 session_token = NULL,
                 session_last_seen = NULL
             WHERE id = ${attemptId}
@@ -1235,21 +1240,21 @@ const getMyResults = async (req, res) => {
                 d.name AS department_name,
                 b.name AS branch_name,
                 u.name AS university_name,
-                ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'},
+                ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'},
                 ea.start_time,
                 ea.submit_time,
                 ea.score,
                 ea.forced_submit,
                 e.total_marks,
-                ISNULL(v.total_violations, 0) AS violations_count,
-                ISNULL(v.violation_summary, '') AS violation_summary,
+                COALESCE(v.total_violations, 0) AS violations_count,
+                COALESCE(v.violation_summary, '') AS violation_summary,
                 CASE
                     WHEN e.total_marks = 0 THEN 0
                     ELSE CAST(ea.score * 100.0 / e.total_marks AS DECIMAL(5,2))
                 END AS percentage,
                 CASE
                     WHEN essay_progress.pending_essay_answers > 0 THEN 'Pending Review'
-                    WHEN ea.forced_submit = 1 THEN 'Terminated'
+                    WHEN ea.forced_submit = TRUE THEN 'Terminated'
                     ELSE 'Completed'
                 END AS status
             FROM exam_attempts ea
@@ -1259,25 +1264,25 @@ const getMyResults = async (req, res) => {
             LEFT JOIN branches b ON d.branch_id = b.id
             LEFT JOIN universities u ON b.university_id = u.id
             ${hasFaculties ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
-            OUTER APPLY (
-                SELECT ISNULL(SUM(pv.count), 0) AS total_violations
-                     , ISNULL(STRING_AGG(CONCAT(pv.violation_type, ': ', pv.count), ', '), '') AS violation_summary
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(SUM(pv.count), 0) AS total_violations
+                     , COALESCE(STRING_AGG(CONCAT(pv.violation_type, ': ', pv.count), ', '), '') AS violation_summary
                 FROM proctoring_violations pv
                 WHERE pv.attempt_id = ea.id
-            ) v
-            OUTER APPLY (
+            ) v ON TRUE
+            LEFT JOIN LATERAL (
                 SELECT COUNT(*) AS pending_essay_answers
                 FROM answers a
                 JOIN questions q ON q.id = a.question_id
                 WHERE a.attempt_id = ea.id
-                  AND UPPER(LTRIM(RTRIM(ISNULL(q.question_type, '')))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
+                  AND UPPER(TRIM(COALESCE(q.question_type, ''))) IN ('ESSAY', 'SHORTANSWER', 'WRITTEN')
                   AND a.reviewed_at IS NULL
-            ) essay_progress
+            ) essay_progress ON TRUE
             WHERE ea.student_id = ${req.user.id}
               AND ea.submit_time IS NOT NULL
               AND (e.start_date IS NULL OR ea.submit_time >= e.start_date)
-              AND ea.submit_time <= GETDATE()
-              AND ISNULL(e.is_demo_exam, 0) = 0
+              AND ea.submit_time <= NOW()
+              AND COALESCE(e.is_demo_exam, FALSE) = FALSE
             ORDER BY ea.submit_time DESC
         `);
 

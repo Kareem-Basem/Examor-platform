@@ -1,4 +1,4 @@
-﻿const bcrypt = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 const { sql } = require('../config/db');
 const { createDemoExamIfMissing } = require('./auth.controller');
 
@@ -6,17 +6,17 @@ const normalizeRole = (value) => (['admin', 'teacher', 'student'].includes(value
 const normalizeProfileMode = (value) => (value === 'independent' || value === 'academic' ? value : null);
 const normalizeAccessMode = (value) => (value === 'link' ? 'link' : 'department');
 const VALID_ATTEMPT_TIME_FILTER = `
-    ea.start_time <= GETDATE()
-    AND (ea.submit_time IS NULL OR ea.submit_time <= GETDATE())
+    ea.start_time <= NOW()
+    AND (ea.submit_time IS NULL OR ea.submit_time <= NOW())
     AND (e.start_date IS NULL OR ea.submit_time IS NULL OR ea.submit_time >= e.start_date)
 `;
 
 const hasColumn = async (tableName, columnName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_NAME = ${tableName}
-          AND COLUMN_NAME = ${columnName}
+        FROM information_schema.columns
+        WHERE table_name = ${tableName}
+          AND column_name = ${columnName}
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -25,9 +25,9 @@ const hasColumn = async (tableName, columnName) => {
 const hasTable = async (tableName) => {
     const result = await sql.query`
         SELECT COUNT(*) AS total
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_NAME = ${tableName}
-          AND TABLE_TYPE = 'BASE TABLE'
+        FROM information_schema.tables
+        WHERE table_name = ${tableName}
+          AND table_type = 'BASE TABLE'
     `;
 
     return Number(result.recordset[0]?.total || 0) > 0;
@@ -43,7 +43,7 @@ const getDepartmentHierarchy = async (departmentId, includeFaculty = true) => {
                d.branch_id,
                b.university_id,
                ${canUseFaculty ? 'd.faculty_id,' : 'CAST(NULL AS INT) AS faculty_id,'}
-               ${canUseFaculty ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'}
+               ${canUseFaculty ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'}
         FROM departments d
         JOIN branches b ON d.branch_id = b.id
         ${canUseFaculty ? 'LEFT JOIN faculties f ON d.faculty_id = f.id' : ''}
@@ -195,7 +195,7 @@ const getDepartments = async (_req, res) => {
             SELECT d.*,
                    b.name AS branch_name,
                    u.name AS university_name,
-                   ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name'}
+                   ${hasFaculties ? 'f.name AS faculty_name' : 'CAST(NULL AS TEXT) AS faculty_name'}
             FROM departments d
             JOIN branches b ON d.branch_id = b.id
             JOIN universities u ON b.university_id = u.id
@@ -258,7 +258,7 @@ const getCourses = async (_req, res) => {
                    d.name AS department_name,
                    b.name AS branch_name,
                    u.name AS university_name,
-                   ${hasFaculties ? 'f.id AS faculty_id, f.name AS faculty_name' : 'CAST(NULL AS INT) AS faculty_id, CAST(NULL AS NVARCHAR(255)) AS faculty_name'}
+                   ${hasFaculties ? 'f.id AS faculty_id, f.name AS faculty_name' : 'CAST(NULL AS INT) AS faculty_id, CAST(NULL AS TEXT) AS faculty_name'}
             FROM courses c
             JOIN departments d ON c.department_id = d.id
             JOIN branches b ON d.branch_id = b.id
@@ -332,19 +332,19 @@ const getUsers = async (req, res) => {
         if (academicFilter === 'pending') {
             conditions.push(academicExpression);
             if (hasAcademicVerifiedColumn) {
-                conditions.push('ISNULL(u.academic_verified, 0) = 0');
+                conditions.push('COALESCE(u.academic_verified, false) = false');
             }
         }
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
         const baseSelect = `
-                SELECT u.id, u.name, u.email, u.role, u.profile_mode, ${activeColumnExists ? 'u.is_active' : 'CAST(1 AS bit) AS is_active'},
-                       ${hasAcademicVerifiedColumn ? 'u.academic_verified' : 'CAST(0 AS BIT) AS academic_verified'},
-                       ${hasAcademicEmailConfirmedColumn ? 'u.academic_email_confirmed' : 'CAST(0 AS BIT) AS academic_email_confirmed'},
+                SELECT u.id, u.name, u.email, u.role, u.profile_mode, ${activeColumnExists ? 'u.is_active' : 'CAST(TRUE AS BOOLEAN) AS is_active'},
+                       ${hasAcademicVerifiedColumn ? 'u.academic_verified' : 'CAST(FALSE AS BOOLEAN) AS academic_verified'},
+                       ${hasAcademicEmailConfirmedColumn ? 'u.academic_email_confirmed' : 'CAST(FALSE AS BOOLEAN) AS academic_email_confirmed'},
                        u.university_id, u.department_id, u.created_at,
                        un.name AS university_name, d.name AS department_name,
-                       ${hasFaculties ? 'b.id AS branch_id, f.id AS faculty_id, f.name AS faculty_name, b.name AS branch_name' : 'CAST(NULL AS INT) AS branch_id, CAST(NULL AS INT) AS faculty_id, CAST(NULL AS NVARCHAR(255)) AS faculty_name, CAST(NULL AS NVARCHAR(255)) AS branch_name'}
+                       ${hasFaculties ? 'b.id AS branch_id, f.id AS faculty_id, f.name AS faculty_name, b.name AS branch_name' : 'CAST(NULL AS INT) AS branch_id, CAST(NULL AS INT) AS faculty_id, CAST(NULL AS TEXT) AS faculty_name, CAST(NULL AS TEXT) AS branch_name'}
                 FROM users u
                 LEFT JOIN universities un ON u.university_id = un.id
                 LEFT JOIN departments d ON u.department_id = d.id
@@ -367,7 +367,7 @@ const getUsers = async (req, res) => {
         const result = await request.query(`
             ${baseSelect}
             ORDER BY u.created_at DESC, u.id DESC
-            ${usePaging ? 'OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY' : ''}
+            ${usePaging ? 'LIMIT @limit OFFSET @offset' : ''}
         `);
 
         if (usePaging) {
@@ -415,7 +415,7 @@ const setUserAcademicVerification = async (req, res) => {
         const updates = ['academic_verified = @academic_verified'];
         const request = new sql.Request();
         request.input('userId', sql.Int, userId);
-        request.input('academic_verified', sql.Bit, academicVerified ? 1 : 0);
+        request.input('academic_verified', sql.Bit, academicVerified ? true : false);
 
         if (hasAcademicEmailConfirmedColumn && academicVerified) {
             updates.push('academic_email_confirmed = 1');
@@ -427,7 +427,7 @@ const setUserAcademicVerification = async (req, res) => {
         }
 
         if (hasAcademicVerifiedAtColumn) {
-            updates.push(`academic_verified_at = ${academicVerified ? 'GETDATE()' : 'NULL'}`);
+            updates.push(`academic_verified_at = ${academicVerified ? 'NOW()' : 'NULL'}`);
         }
 
         await request.query(`
@@ -499,8 +499,8 @@ const addUser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);
         const result = await sql.query`
             INSERT INTO users (name, email, password, role, university_id, department_id, profile_mode)
-            OUTPUT INSERTED.id
             VALUES (${name}, ${email}, ${hashedPassword}, ${role}, ${universityId}, ${departmentId}, ${derivedProfileMode})
+            RETURNING id
         `;
         const createdUserId = Number(result.recordset[0]?.id || 0);
 
@@ -626,7 +626,7 @@ const resetUserPassword = async (req, res) => {
             SET password = ${hashedPassword}
             WHERE id = ${userId}
         `;
-        if (result.rowsAffected[0] === 0) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
@@ -659,7 +659,7 @@ const setUserStatus = async (req, res) => {
             SET is_active = ${isActive ? 1 : 0}
             WHERE id = ${userId}
         `;
-        if (result.rowsAffected[0] === 0) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
@@ -708,13 +708,13 @@ const setUsersBulkStatus = async (req, res) => {
             isActive ? 'bulk_activate_users' : 'bulk_deactivate_users',
             'user',
             null,
-            JSON.stringify({ userIds, affected: result.rowsAffected[0] || 0 })
+            JSON.stringify({ userIds, affected: result.rowCount || 0 })
         );
 
         res.status(200).json({
             success: true,
             message: isActive ? 'Users activated successfully' : 'Users deactivated successfully',
-            affected: result.rowsAffected[0] || 0
+            affected: result.rowCount || 0
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -749,7 +749,7 @@ const setUsersBulkAcademicVerification = async (req, res) => {
             return `@user_id_${index}`;
         }).join(', ');
 
-        const updates = [`academic_verified = ${academicVerified ? 1 : 0}`];
+        const updates = [`academic_verified = ${academicVerified ? 'TRUE' : 'FALSE'}`];
         if (hasAcademicEmailConfirmedColumn && academicVerified) {
             updates.push('academic_email_confirmed = 1');
         }
@@ -757,7 +757,7 @@ const setUsersBulkAcademicVerification = async (req, res) => {
             updates.push(`academic_verified_by_admin_id = ${academicVerified ? req.user.id : 'NULL'}`);
         }
         if (hasAcademicVerifiedAtColumn) {
-            updates.push(`academic_verified_at = ${academicVerified ? 'GETDATE()' : 'NULL'}`);
+            updates.push(`academic_verified_at = ${academicVerified ? 'NOW()' : 'NULL'}`);
         }
 
         const result = await request.query(`
@@ -775,13 +775,13 @@ const setUsersBulkAcademicVerification = async (req, res) => {
             academicVerified ? 'bulk_verify_academic' : 'bulk_unverify_academic',
             'user',
             null,
-            JSON.stringify({ userIds, affected: result.rowsAffected[0] || 0 })
+            JSON.stringify({ userIds, affected: result.rowCount || 0 })
         );
 
         res.status(200).json({
             success: true,
             message: academicVerified ? 'Academic verification enabled for selected users' : 'Academic verification removed for selected users',
-            affected: result.rowsAffected[0] || 0
+            affected: result.rowCount || 0
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -795,7 +795,7 @@ const getExams = async (_req, res) => {
             SELECT e.id, e.title, e.exam_code, e.duration, e.total_marks, e.access_mode, e.start_date, e.end_date, e.created_at,
                    creator.name AS teacher_name, creator.email AS teacher_email,
                    c.name AS course_name, d.name AS department_name, u.name AS university_name,
-                   ${hasFaculties ? 'f.name AS faculty_name, b.name AS branch_name,' : 'CAST(NULL AS NVARCHAR(255)) AS faculty_name, CAST(NULL AS NVARCHAR(255)) AS branch_name,'}
+                   ${hasFaculties ? 'f.name AS faculty_name, b.name AS branch_name,' : 'CAST(NULL AS TEXT) AS faculty_name, CAST(NULL AS TEXT) AS branch_name,'}
                    (SELECT COUNT(*) FROM questions q WHERE q.exam_id = e.id) AS questions_count,
                    (
                        SELECT COUNT(*)
@@ -864,16 +864,16 @@ const getAttempts = async (_req, res) => {
                    e.title AS exam_title, e.exam_code, e.access_mode, e.total_marks,
                    student.name AS student_name, student.email AS student_email,
                    teacher.name AS teacher_name,
-                   ISNULL(violations.total_violations, 0) AS violations_count
+                   COALESCE(violations.total_violations, 0) AS violations_count
             FROM exam_attempts ea
             JOIN exams e ON ea.exam_id = e.id
             JOIN users student ON ea.student_id = student.id
             JOIN users teacher ON e.created_by = teacher.id
-            OUTER APPLY (
-                SELECT ISNULL(SUM(pv.count), 0) AS total_violations
+            LEFT JOIN LATERAL (
+                SELECT COALESCE(SUM(pv.count), 0) AS total_violations
                 FROM proctoring_violations pv
                 WHERE pv.attempt_id = ea.id
-            ) violations
+            ) violations ON TRUE
             WHERE ${VALID_ATTEMPT_TIME_FILTER}
             ORDER BY ea.start_time DESC, ea.id DESC
         `);
@@ -893,28 +893,26 @@ const forceSubmitAttempt = async (req, res) => {
 
         const result = await sql.query`
             UPDATE exam_attempts
-            SET submit_time = GETDATE(),
-                score = ISNULL(score, 0),
-                forced_submit = 1
+            SET submit_time = NOW(),
+                score = COALESCE(score, 0),
+                forced_submit = TRUE
             WHERE id = ${attemptId}
               AND submit_time IS NULL
         `;
 
-        if (result.rowsAffected[0] === 0) {
+        if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: 'Open attempt not found' });
         }
 
         await sql.query`
-            IF NOT EXISTS (
+            INSERT INTO proctoring_violations (attempt_id, violation_type, count, reason)
+            SELECT ${attemptId}, 'admin_force_submit', 1, 'Attempt was force-submitted by admin'
+            WHERE NOT EXISTS (
                 SELECT 1
                 FROM proctoring_violations
                 WHERE attempt_id = ${attemptId}
                   AND violation_type = 'admin_force_submit'
             )
-            BEGIN
-                INSERT INTO proctoring_violations (attempt_id, violation_type, count, reason)
-                VALUES (${attemptId}, 'admin_force_submit', 1, 'Attempt was force-submitted by admin')
-            END
         `;
 
         await writeAuditLog(req.user.id, 'force_submit_attempt', 'attempt', attemptId, null);
@@ -943,9 +941,9 @@ const forceSubmitAttemptsBulk = async (req, res) => {
 
         const result = await request.query(`
             UPDATE exam_attempts
-            SET submit_time = GETDATE(),
-                score = ISNULL(score, 0),
-                forced_submit = 1
+            SET submit_time = NOW(),
+                score = COALESCE(score, 0),
+                forced_submit = TRUE
             WHERE id IN (${placeholders})
               AND submit_time IS NULL
         `);
@@ -974,13 +972,13 @@ const forceSubmitAttemptsBulk = async (req, res) => {
             'bulk_force_submit_attempts',
             'attempt',
             null,
-            JSON.stringify({ attemptIds, affected: result.rowsAffected[0] || 0 })
+            JSON.stringify({ attemptIds, affected: result.rowCount || 0 })
         );
 
         res.status(200).json({
             success: true,
             message: 'Attempts force-submitted successfully',
-            affected: result.rowsAffected[0] || 0
+            affected: result.rowCount || 0
         });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -1030,8 +1028,8 @@ const getAuditLogs = async (_req, res) => {
 const getStatistics = async (_req, res) => {
     try {
         const hasDemoExamColumn = await hasColumn('exams', 'is_demo_exam');
-        const demoExamWhere = hasDemoExamColumn ? 'WHERE ISNULL(is_demo_exam, 0) = 0' : '';
-        const demoExamAnd = hasDemoExamColumn ? 'AND ISNULL(e.is_demo_exam, 0) = 0' : '';
+        const demoExamWhere = hasDemoExamColumn ? 'WHERE COALESCE(is_demo_exam, FALSE) = FALSE' : '';
+        const demoExamAnd = hasDemoExamColumn ? 'AND COALESCE(e.is_demo_exam, FALSE) = FALSE' : '';
         const [users, exams, universities, attempts, teachers, students, activeAttempts, forcedSubmits, violations] = await Promise.all([
             sql.query`SELECT COUNT(*) AS total FROM users`,
             sql.query(`
@@ -1061,7 +1059,7 @@ const getStatistics = async (_req, res) => {
                 SELECT COUNT(*) AS total
                 FROM exam_attempts ea
                 JOIN exams e ON ea.exam_id = e.id
-                WHERE ea.forced_submit = 1
+                WHERE ea.forced_submit = TRUE
                   AND ${VALID_ATTEMPT_TIME_FILTER}
                   ${demoExamAnd}
             `),
