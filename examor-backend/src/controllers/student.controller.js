@@ -158,7 +158,7 @@ const getTableColumns = async (tableName) => {
     return new Set((result.recordset || []).map((row) => String(row.column_name || '').toLowerCase()));
 };
 
-const ensureStudentDemoExam = async (studentId, userName) => {
+const ensureStudentDemoExam = async (studentId, userName, forcedCode = null) => {
     const existing = await sql.query`
         SELECT id, exam_code
         FROM exams
@@ -175,7 +175,9 @@ const ensureStudentDemoExam = async (studentId, userName) => {
     const examColumns = await getTableColumns('exams');
     if (!examColumns.has('is_demo_exam')) return null;
 
-    const demoCode = `DEMO-STUDENT-${studentId}-${Date.now().toString(36).slice(-5).toUpperCase()}`;
+    const demoCode = forcedCode && String(forcedCode).trim()
+        ? String(forcedCode).trim()
+        : `DEMO-STUDENT-${studentId}-${Date.now().toString(36).slice(-5).toUpperCase()}`;
     const demoTitle = 'Demo Exam (Student Onboarding)';
     const demoDuration = 10;
     const demoTotalMarks = 10;
@@ -918,7 +920,7 @@ const getExamByCode = async (req, res) => {
                         WHERE id = ${req.user.id}
                     `;
                     const userName = userNameResult.recordset[0]?.name || 'User';
-                    await ensureStudentDemoExam(req.user.id, userName);
+                    await ensureStudentDemoExam(req.user.id, userName, normalizedCode);
                     exam = await getDemoExamFallback(req.user.id);
                 } catch (err) {
                     console.error('Error in demo fallback:', err);
@@ -1021,7 +1023,7 @@ const startExam = async (req, res) => {
                     WHERE id = ${req.user.id}
                 `;
                 const userName = userNameResult.recordset[0]?.name || 'User';
-                await ensureStudentDemoExam(req.user.id, userName);
+                await ensureStudentDemoExam(req.user.id, userName, normalizedCode);
                 exam = await getDemoExamFallback(req.user.id);
             }
         }
