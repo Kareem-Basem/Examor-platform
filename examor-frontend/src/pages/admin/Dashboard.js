@@ -408,28 +408,6 @@ function AdminDashboard() {
     setShowEditModal(false);
   };
 
-  const handleUpdateUser = async (account) => {
-    const draft = editingUserId === account.id && editingUserDraft
-      ? editingUserDraft
-      : {
-        role: account.role,
-        university_id: account.university_id ? String(account.university_id) : '',
-        branch_id: account.branch_id ? String(account.branch_id) : '',
-        faculty_id: account.faculty_id ? String(account.faculty_id) : '',
-        department_id: account.department_id ? String(account.department_id) : '',
-        profile_mode: account.profile_mode || '',
-      };
-    await API.patch(`/admin/users/${account.id}`, {
-      role: draft.role,
-      university_id: draft.university_id ? Number(draft.university_id) : null,
-      department_id: draft.department_id ? Number(draft.department_id) : null,
-      profile_mode: ['teacher', 'student'].includes(draft.role) ? (draft.profile_mode || null) : null,
-    });
-    cancelUserEdit();
-    await fetchUsers();
-    showToast(t.successUpdated, 'success');
-  };
-
   const handleUpdateUserDraft = async () => {
     if (!editingUserId || !editingUserDraft) return;
     await API.patch(`/admin/users/${editingUserId}`, {
@@ -1187,6 +1165,9 @@ function AdminDashboard() {
 }
 
 export default AdminDashboard;
+
+
+
 
 
 

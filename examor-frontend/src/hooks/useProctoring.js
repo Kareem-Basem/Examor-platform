@@ -102,7 +102,7 @@ const useProctoring = ({
         if (now - lastTabViolationRef.current < 1200) return;
         lastTabViolationRef.current = now;
         warnOrForce('tabSwitch', warningMsg, forceMsg);
-    }, [warnOrForce]);
+    }, [onViolation, warnOrForce]);
 
     const handleVisibility = useCallback(() => {
         if (!active.current) return;

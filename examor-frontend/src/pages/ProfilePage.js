@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import API from '../api/axios';
@@ -30,50 +30,50 @@ function ProfilePage() {
   const isStudent = role === 'student';
 
   const text = useMemo(() => ({
-    profile: isAr ? 'الحساب' : 'Profile',
-    personalInfo: isAr ? 'البيانات الشخصية' : 'Personal Information',
-    academicInfo: isAr ? 'البيانات الأكاديمية' : 'Academic Information',
-    security: isAr ? 'الأمان' : 'Security',
-    name: isAr ? 'الاسم' : 'Name',
-    email: isAr ? 'البريد الإلكتروني' : 'Email',
-    phone: isAr ? 'رقم الهاتف' : 'Phone Number',
-    academicYear: isAr ? 'الفرقة الدراسية' : 'Academic Year',
-    bio: isAr ? 'نبذة مختصرة' : 'Short Bio',
-    university: isAr ? 'الجامعة' : 'University',
-    branch: isAr ? 'الفرع' : 'Branch',
-    faculty: isAr ? 'الكلية' : 'Faculty',
-    department: isAr ? 'القسم' : 'Department',
-    saveProfile: isAr ? 'حفظ البيانات' : 'Save Profile',
-    profileSaved: isAr ? 'تم حفظ بيانات الحساب' : 'Profile updated successfully',
-    currentPassword: isAr ? 'كلمة المرور الحالية' : 'Current Password',
-    newPassword: isAr ? 'كلمة المرور الجديدة' : 'New Password',
-    confirmPassword: isAr ? 'تأكيد كلمة المرور الجديدة' : 'Confirm New Password',
-    updatePassword: isAr ? 'تغيير كلمة المرور' : 'Change Password',
-    passwordSaved: isAr ? 'تم تغيير كلمة المرور' : 'Password updated successfully',
-    adminManaged: isAr ? 'هذه البيانات الأكاديمية تُدار من لوحة الإدارة للحفاظ على اتساق الهيكل الأكاديمي.' : 'Academic hierarchy is managed by admin to keep institutional data consistent.',
-    studentHint: isAr ? 'يمكنك تعديل بياناتك الشخصية الأساسية، بينما تبقى بيانات الجامعة والكلية والقسم للقراءة فقط.' : 'You can edit your basic personal details, while your university, faculty, and department remain read-only.',
-    teacherHint: isAr ? 'يمكنك تعديل بياناتك الشخصية ووسائل التواصل، بينما يبقى الارتباط الأكاديمي للقراءة فقط.' : 'You can edit your personal and contact details, while academic affiliation stays read-only.',
-    loading: isAr ? 'جارٍ التحميل...' : 'Loading...',
-    exams: isAr ? 'الامتحانات المتاحة' : 'Available Exams',
-    results: isAr ? 'نتائجي' : 'My Results',
-    myExams: isAr ? 'امتحاناتي' : 'My Exams',
-    monitor: isAr ? 'المتابعة الحية' : 'Live Monitor',
-    bank: isAr ? 'بنك الأسئلة' : 'Question Bank',
-    courses: isAr ? 'المواد' : 'Courses',
-    mismatch: isAr ? 'تأكيد كلمة المرور غير مطابق' : 'Password confirmation does not match',
-    basicRequired: isAr ? 'الاسم مطلوب' : 'Name is required',
-    recentActivity: isAr ? 'آخر النشاطات' : 'Recent Activity',
-    noActivity: isAr ? 'لا توجد نشاطات مسجلة حالياً' : 'No recent activity yet',
-    startedExam: isAr ? 'بدأ امتحاناً' : 'Started an exam',
-    submittedExam: isAr ? 'سلّم الامتحان' : 'Submitted exam',
-    forceSubmittedExam: isAr ? 'تم إنهاء الامتحان إجبارياً' : 'Exam was force submitted',
-    createdExam: isAr ? 'أنشأ امتحاناً' : 'Created an exam',
-    savedQuestionToBank: isAr ? 'حفظ سؤالاً في بنك الأسئلة' : 'Saved a question to the bank',
-    studentSubmittedAttempt: isAr ? 'أحد الطلاب سلّم محاولة' : 'A student submitted an attempt',
-    studentForcedAttempt: isAr ? 'تم إنهاء محاولة طالب إجبارياً' : 'A student attempt was force submitted',
-    scoreLabel: isAr ? 'الدرجة' : 'Score',
-    byStudent: isAr ? 'الطالب' : 'Student',
-    accessMode: isAr ? 'نوع الوصول' : 'Access mode',
+    profile: isAr ? '??????' : 'Profile',
+    personalInfo: isAr ? '???????? ???????' : 'Personal Information',
+    academicInfo: isAr ? '???????? ??????????' : 'Academic Information',
+    security: isAr ? '??????' : 'Security',
+    name: isAr ? '?????' : 'Name',
+    email: isAr ? '?????? ??????????' : 'Email',
+    phone: isAr ? '??? ??????' : 'Phone Number',
+    academicYear: isAr ? '?????? ????????' : 'Academic Year',
+    bio: isAr ? '???? ??????' : 'Short Bio',
+    university: isAr ? '???????' : 'University',
+    branch: isAr ? '?????' : 'Branch',
+    faculty: isAr ? '??????' : 'Faculty',
+    department: isAr ? '?????' : 'Department',
+    saveProfile: isAr ? '??? ????????' : 'Save Profile',
+    profileSaved: isAr ? '?? ??? ?????? ??????' : 'Profile updated successfully',
+    currentPassword: isAr ? '???? ?????? ???????' : 'Current Password',
+    newPassword: isAr ? '???? ?????? ???????' : 'New Password',
+    confirmPassword: isAr ? '????? ???? ?????? ???????' : 'Confirm New Password',
+    updatePassword: isAr ? '????? ???? ??????' : 'Change Password',
+    passwordSaved: isAr ? '?? ????? ???? ??????' : 'Password updated successfully',
+    adminManaged: isAr ? '??? ???????? ?????????? ????? ?? ???? ??????? ?????? ??? ????? ?????? ?????????.' : 'Academic hierarchy is managed by admin to keep institutional data consistent.',
+    studentHint: isAr ? '????? ????? ??????? ??????? ????????? ????? ???? ?????? ??????? ??????? ?????? ??????? ???.' : 'You can edit your basic personal details, while your university, faculty, and department remain read-only.',
+    teacherHint: isAr ? '????? ????? ??????? ??????? ?????? ???????? ????? ???? ???????? ????????? ??????? ???.' : 'You can edit your personal and contact details, while academic affiliation stays read-only.',
+    loading: isAr ? '???? ???????...' : 'Loading...',
+    exams: isAr ? '?????????? ???????' : 'Available Exams',
+    results: isAr ? '??????' : 'My Results',
+    myExams: isAr ? '?????????' : 'My Exams',
+    monitor: isAr ? '???????? ?????' : 'Live Monitor',
+    bank: isAr ? '??? ???????' : 'Question Bank',
+    courses: isAr ? '??????' : 'Courses',
+    mismatch: isAr ? '????? ???? ?????? ??? ?????' : 'Password confirmation does not match',
+    basicRequired: isAr ? '????? ?????' : 'Name is required',
+    recentActivity: isAr ? '??? ????????' : 'Recent Activity',
+    noActivity: isAr ? '?? ???? ?????? ????? ??????' : 'No recent activity yet',
+    startedExam: isAr ? '??? ????????' : 'Started an exam',
+    submittedExam: isAr ? '???? ????????' : 'Submitted exam',
+    forceSubmittedExam: isAr ? '?? ????? ???????? ????????' : 'Exam was force submitted',
+    createdExam: isAr ? '???? ????????' : 'Created an exam',
+    savedQuestionToBank: isAr ? '??? ?????? ?? ??? ???????' : 'Saved a question to the bank',
+    studentSubmittedAttempt: isAr ? '??? ?????? ???? ??????' : 'A student submitted an attempt',
+    studentForcedAttempt: isAr ? '?? ????? ?????? ???? ????????' : 'A student attempt was force submitted',
+    scoreLabel: isAr ? '??????' : 'Score',
+    byStudent: isAr ? '??????' : 'Student',
+    accessMode: isAr ? '??? ??????' : 'Access mode',
     academicPendingTitleTeacher: isAr ? '\u062d\u0633\u0627\u0628 \u0645\u062f\u0631\u0633 \u0623\u0643\u0627\u062f\u064a\u0645\u064a \u0641\u064a \u0627\u0646\u062a\u0638\u0627\u0631 \u0627\u0644\u0645\u0648\u0627\u0641\u0642\u0629' : 'Academic teacher account pending approval',
     academicPendingTitleStudent: isAr ? '\u062d\u0633\u0627\u0628 \u0637\u0627\u0644\u0628 \u0623\u0643\u0627\u062f\u064a\u0645\u064a \u0641\u064a \u0627\u0646\u062a\u0638\u0627\u0631 \u0627\u0644\u0645\u0648\u0627\u0641\u0642\u0629' : 'Academic student account pending approval',
     academicPendingDescTeacher: isAr
@@ -108,13 +108,13 @@ function ProfilePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const updateStoredUser = (nextProfile) => {
+  const updateStoredUser = useCallback((nextProfile) => {
     const merged = {
       ...(currentUser || {}),
       ...(nextProfile || {}),
     };
     localStorage.setItem('user', JSON.stringify(merged));
-  };
+  }, [currentUser]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -142,7 +142,7 @@ function ProfilePage() {
     };
 
     fetchProfile();
-  }, []);
+  }, [updateStoredUser]);
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
@@ -302,32 +302,32 @@ function ProfilePage() {
       case 'exam_submitted':
         return {
           title: `${text.submittedExam}${examCode}`,
-          detail: extraText ? `${subject} • ${text.scoreLabel}: ${extraText}` : subject,
+          detail: extraText ? `${subject} â€¢ ${text.scoreLabel}: ${extraText}` : subject,
         };
       case 'exam_force_submitted':
         return {
           title: `${text.forceSubmittedExam}${examCode}`,
-          detail: extraText ? `${subject} • ${text.scoreLabel}: ${extraText}` : subject,
+          detail: extraText ? `${subject} â€¢ ${text.scoreLabel}: ${extraText}` : subject,
         };
       case 'exam_created':
         return {
           title: `${text.createdExam}${examCode}`,
-          detail: extraText ? `${subject} • ${text.accessMode}: ${extraText}` : subject,
+          detail: extraText ? `${subject} â€¢ ${text.accessMode}: ${extraText}` : subject,
         };
       case 'question_saved_to_bank':
         return {
           title: text.savedQuestionToBank,
-          detail: extraText ? `${subject} • ${extraText}` : subject,
+          detail: extraText ? `${subject} â€¢ ${extraText}` : subject,
         };
       case 'attempt_submitted':
         return {
           title: `${text.studentSubmittedAttempt}${examCode}`,
-          detail: extraText ? `${subject} • ${text.byStudent}: ${extraText}` : subject,
+          detail: extraText ? `${subject} â€¢ ${text.byStudent}: ${extraText}` : subject,
         };
       case 'attempt_force_submitted':
         return {
           title: `${text.studentForcedAttempt}${examCode}`,
-          detail: extraText ? `${subject} • ${text.byStudent}: ${extraText}` : subject,
+          detail: extraText ? `${subject} â€¢ ${text.byStudent}: ${extraText}` : subject,
         };
       default:
         return {
@@ -365,7 +365,7 @@ function ProfilePage() {
       <div style={{ ...cardBase, padding: 18, marginBottom: 16 }}>
         <div style={{ color: colors.text, fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>{text.profile}</div>
         <div style={{ color: colors.textMuted, fontSize: 12, marginBottom: 8 }}>
-          {isTeacher ? (isAr ? 'ملف المدرس' : 'Teacher Profile') : (isAr ? 'ملف الطالب' : 'Student Profile')}
+          {isTeacher ? (isAr ? '??? ??????' : 'Teacher Profile') : (isAr ? '??? ??????' : 'Student Profile')}
         </div>
         <div style={{ color: colors.textMuted, fontSize: 13, lineHeight: 1.8 }}>
           {isTeacher ? text.teacherHint : text.studentHint}
@@ -376,7 +376,7 @@ function ProfilePage() {
         <form onSubmit={handleSaveProfile} style={{ ...cardBase, padding: 18 }}>
           <div style={sectionTitle}>{text.personalInfo}</div>
           <div style={sectionHint}>
-            {isAr ? 'عدّل بياناتك الأساسية ثم احفظ التغييرات.' : 'Update your basic information, then save changes.'}
+            {isAr ? '???? ??????? ???????? ?? ???? ?????????.' : 'Update your basic information, then save changes.'}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
@@ -427,7 +427,7 @@ function ProfilePage() {
           <div style={{ ...cardBase, padding: 18 }}>
             <div style={sectionTitle}>{text.academicInfo}</div>
             <div style={sectionHint}>
-              {isAr ? 'هذه البيانات تعرض ارتباطك المؤسسي الحالي.' : 'These fields reflect your current academic affiliation.'}
+              {isAr ? '??? ???????? ???? ??????? ??????? ??????.' : 'These fields reflect your current academic affiliation.'}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
               {infoCards.map(([label, value]) => (
@@ -445,7 +445,7 @@ function ProfilePage() {
           <div style={{ ...cardBase, padding: 18 }}>
             <div style={sectionTitle}>{text.recentActivity}</div>
             <div style={{ ...sectionHint, marginBottom: 10 }}>
-              {isAr ? 'آخر العمليات التي تمت على حسابك.' : 'Latest actions performed on your account.'}
+              {isAr ? '??? ???????? ???? ??? ??? ?????.' : 'Latest actions performed on your account.'}
             </div>
             {activity.length === 0 ? (
               <div style={{ color: colors.textMuted, fontSize: 13 }}>{text.noActivity}</div>
@@ -482,7 +482,7 @@ function ProfilePage() {
           <form onSubmit={handleChangePassword} style={{ ...cardBase, padding: 18 }}>
             <div style={sectionTitle}>{text.security}</div>
             <div style={sectionHint}>
-              {isAr ? 'غيّر كلمة المرور بشكل آمن من هنا.' : 'Change your password securely from here.'}
+              {isAr ? '???? ???? ?????? ???? ??? ?? ???.' : 'Change your password securely from here.'}
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
@@ -515,6 +515,7 @@ function ProfilePage() {
 }
 
 export default ProfilePage;
+
 
 
 

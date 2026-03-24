@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import API from '../../api/axios';
@@ -92,12 +92,7 @@ function StudentDashboard() {
   const isMobile = viewportWidth <= 640;
   const isNarrowMobile = viewportWidth <= 430;
 
-  useEffect(() => {
-    if (!user?.id) return;
-    fetchExams();
-  }, [user?.id]);
-
-  const fetchExams = async () => {
+  const fetchExams = useCallback(async () => {
     setLoadingExams(true);
     setLoadError('');
     try {
@@ -117,7 +112,12 @@ function StudentDashboard() {
     } finally {
       setLoadingExams(false);
     }
-  };
+  }, [text.openError, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchExams();
+  }, [fetchExams, user?.id]);
 
   const handleStartExam = async (code) => {
     setLoadingCode(code);
@@ -400,3 +400,4 @@ function StudentDashboard() {
 }
 
 export default StudentDashboard;
+
