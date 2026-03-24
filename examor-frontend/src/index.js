@@ -1,4 +1,9 @@
 import './i18n/index.js';
+// Examor Platform
+// Developed by Kareem Basem (KeMoO)
+// Started: 10-03-2026
+// Unauthorized use is prohibited
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';

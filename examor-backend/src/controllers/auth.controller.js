@@ -1386,3 +1386,7 @@ module.exports = {
     changeMyPassword,
     createDemoExamIfMissing
 };
+// Examor Platform
+// Developed by Kareem Basem (KeMoO)
+// Started: 10-03-2026
+// Unauthorized use is prohibited
