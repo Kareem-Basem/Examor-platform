@@ -69,6 +69,7 @@ The system focuses on **exam integrity, performance, and real-time control**.
 ### Database
 
 * PostgreSQL (Supabase)
+* Microsoft SQL Server
 
 ### Security
 
