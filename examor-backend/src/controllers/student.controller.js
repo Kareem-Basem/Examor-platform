@@ -1,5 +1,4 @@
 const { sql } = require('../config/db');
-const { createDemoExamIfMissing } = require('./auth.controller');
 
 const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
 
@@ -312,6 +311,186 @@ const ensureStudentDemoExam = async (studentId, userName, forcedCode = null) => 
     return demoExam;
 };
 
+const getAdminOwnerId = async () => {
+    const adminResult = await sql.query`
+        SELECT id
+        FROM users
+        WHERE LOWER(role) = 'admin'
+        ORDER BY id ASC
+        LIMIT 1
+    `;
+    if (adminResult.recordset[0]?.id) return Number(adminResult.recordset[0].id);
+
+    const anyResult = await sql.query`
+        SELECT id
+        FROM users
+        ORDER BY id ASC
+        LIMIT 1
+    `;
+    return Number(anyResult.recordset[0]?.id || 0);
+};
+
+const ensureGlobalDemoExamByCode = async (requestedCode, userName) => {
+    const normalizedCode = String(requestedCode || '').trim().toUpperCase();
+    if (!normalizedCode) return null;
+
+    const existingByCode = await sql.query`
+        SELECT id, exam_code
+        FROM exams
+        WHERE exam_code = ${normalizedCode}
+        ORDER BY id DESC
+        LIMIT 1
+    `;
+    if (existingByCode.recordset[0]) {
+        return existingByCode.recordset[0];
+    }
+
+    const existingDemo = await sql.query`
+        SELECT id, exam_code
+        FROM exams
+        WHERE COALESCE(is_demo_exam, FALSE) = TRUE
+          AND LOWER(COALESCE(title, '')) LIKE 'demo exam (student onboarding)%'
+        ORDER BY id DESC
+        LIMIT 1
+    `;
+    if (existingDemo.recordset[0]) {
+        const found = existingDemo.recordset[0];
+        try {
+            await sql.query`
+                UPDATE exams
+                SET exam_code = ${normalizedCode}
+                WHERE id = ${found.id}
+            `;
+            return { ...found, exam_code: normalizedCode };
+        } catch (_) {
+            return found;
+        }
+    }
+
+    const ownerId = await getAdminOwnerId();
+    if (!ownerId) return null;
+
+    const examColumns = await getTableColumns('exams');
+    if (!examColumns.has('is_demo_exam')) return null;
+
+    const demoTitle = 'Demo Exam (Student Onboarding)';
+    const demoDuration = 10;
+    const demoTotalMarks = 10;
+    const demoMaxAttempts = 3;
+    const demoProctoringEnabled = true;
+    const demoScreenProtection = true;
+
+    const cols = [];
+    const vals = [];
+    const push = (col, value) => {
+        cols.push(col);
+        vals.push(value);
+    };
+
+    if (examColumns.has('title')) push('title', demoTitle);
+    if (examColumns.has('created_by')) push('created_by', ownerId);
+    if (examColumns.has('duration')) push('duration', demoDuration);
+    if (examColumns.has('total_marks')) push('total_marks', demoTotalMarks);
+    if (examColumns.has('exam_code')) push('exam_code', normalizedCode);
+    if (examColumns.has('access_mode')) push('access_mode', 'link');
+    if (examColumns.has('post_end_visibility_mode')) push('post_end_visibility_mode', 'archive');
+    if (examColumns.has('post_end_grace_minutes')) push('post_end_grace_minutes', 0);
+    if (examColumns.has('max_attempts_per_student')) push('max_attempts_per_student', demoMaxAttempts);
+    if (examColumns.has('proctoring_enabled')) push('proctoring_enabled', demoProctoringEnabled);
+    if (examColumns.has('screen_capture_protection')) push('screen_capture_protection', demoScreenProtection);
+    if (examColumns.has('allow_custom_exam_code')) push('allow_custom_exam_code', false);
+    if (examColumns.has('is_demo_exam')) push('is_demo_exam', true);
+
+    if (cols.length === 0) return null;
+
+    const params = vals.map((_, idx) => `$${idx + 1}`).join(', ');
+    const insertResult = await sql.query(
+        `INSERT INTO exams (${cols.join(', ')}) VALUES (${params}) RETURNING id, exam_code`,
+        ...vals
+    );
+    const demoExam = insertResult.recordset[0];
+    if (!demoExam?.id) return null;
+
+    const questionColumns = await getTableColumns('questions');
+    const hasQuestionOrder = questionColumns.has('question_order');
+    const safeName = typeof userName === 'string' && userName.trim() ? userName.trim() : 'User';
+    const demoQuestions = [
+        {
+            text: `Welcome ${safeName}! Which action starts an exam?`,
+            type: 'MCQ',
+            marks: 2,
+            answer: null,
+            options: [
+                { text: 'Press "Start Exam"', isCorrect: true },
+                { text: 'Close the browser', isCorrect: false },
+                { text: 'Refresh the page repeatedly', isCorrect: false }
+            ]
+        },
+        {
+            text: 'True or False: Your answers are autosaved during the exam.',
+            type: 'TrueFalse',
+            marks: 2,
+            answer: 'true',
+            options: []
+        },
+        {
+            text: 'Which action submits your attempt when you finish?',
+            type: 'MCQ',
+            marks: 2,
+            answer: null,
+            options: [
+                { text: 'Press "Submit Exam"', isCorrect: true },
+                { text: 'Close the tab', isCorrect: false },
+                { text: 'Wait until browser closes', isCorrect: false }
+            ]
+        },
+        {
+            text: 'True or False: Exiting fullscreen repeatedly may trigger proctoring violations.',
+            type: 'TrueFalse',
+            marks: 2,
+            answer: 'true',
+            options: []
+        },
+        {
+            text: 'Write one short line describing your exam strategy.',
+            type: 'Essay',
+            marks: 2,
+            answer: null,
+            options: []
+        }
+    ];
+
+    for (let i = 0; i < demoQuestions.length; i += 1) {
+        const question = demoQuestions[i];
+        const questionInsert = hasQuestionOrder
+            ? `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               RETURNING id`
+            : `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id`;
+
+        const questionParams = hasQuestionOrder
+            ? [demoExam.id, question.text, question.type, question.marks, question.answer, i + 1]
+            : [demoExam.id, question.text, question.type, question.marks, question.answer];
+
+        const questionResult = await sql.query(questionInsert, ...questionParams);
+        const questionId = questionResult.recordset[0]?.id;
+        if (!questionId || !Array.isArray(question.options) || question.options.length === 0) continue;
+
+        for (const option of question.options) {
+            await sql.query(
+                'INSERT INTO options (question_id, option_text, is_correct) VALUES ($1, $2, $3)',
+                questionId,
+                option.text,
+                option.isCorrect ? 1 : 0
+            );
+        }
+    }
+
+    return demoExam;
+};
+
 const parseJsonArray = (value) => {
     if (!value) return [];
     try {
@@ -479,7 +658,6 @@ const getExamMeta = async (code, studentId) => {
               AND (
                   (
                       COALESCE(e.is_demo_exam, FALSE) = TRUE
-                      AND e.created_by = student.id
                   )
                   OR (
                       COALESCE(e.is_demo_exam, FALSE) = FALSE
@@ -731,11 +909,7 @@ const getAvailableExams = async (req, res) => {
             WHERE id = ${req.user.id}
         `;
         const userName = userNameResult.recordset[0]?.name || 'User';
-        await createDemoExamIfMissing({
-            userId: req.user.id,
-            role: 'student',
-            userName
-        });
+        await ensureGlobalDemoExamByCode('DEMO-EXAM', userName);
 
         const hasFaculties = await hasFacultyHierarchy();
         const result = await sql.query(`
@@ -823,7 +997,6 @@ const getAvailableExams = async (req, res) => {
               AND (
                   (
                       COALESCE(e.is_demo_exam, FALSE) = TRUE
-                      AND e.created_by = student.id
                   )
                   OR (
                       COALESCE(e.is_demo_exam, FALSE) = FALSE
@@ -898,28 +1071,8 @@ const getExamByCode = async (req, res) => {
                     WHERE id = ${req.user.id}
                 `;
                 const userName = userNameResult.recordset[0]?.name || 'User';
-                await createDemoExamIfMissing({
-                    userId: req.user.id,
-                    role: 'student',
-                    userName
-                });
-
-                const demoResult = await sql.query`
-                    SELECT exam_code
-                    FROM exams
-                    WHERE created_by = ${req.user.id}
-                      AND COALESCE(is_demo_exam, FALSE) = TRUE
-                    ORDER BY id DESC
-                    LIMIT 1
-                `;
-                const demoCode = demoResult.recordset[0]?.exam_code || null;
-                if (demoCode) {
-                    try {
-                        exam = await getExamMeta(demoCode, req.user.id);
-                    } catch (err) {
-                        console.error('Error in demo getExamMeta:', err);
-                    }
-                }
+                await ensureGlobalDemoExamByCode(normalizedCode, userName);
+                exam = await getExamMeta(normalizedCode, req.user.id);
             }
         }
 
@@ -933,8 +1086,8 @@ const getExamByCode = async (req, res) => {
                         WHERE id = ${req.user.id}
                     `;
                     const userName = userNameResult.recordset[0]?.name || 'User';
-                    await ensureStudentDemoExam(req.user.id, userName, normalizedCode);
-                    exam = await getDemoExamFallback(req.user.id);
+                    await ensureGlobalDemoExamByCode(normalizedCode, userName);
+                    exam = await getExamMeta(normalizedCode, req.user.id);
                 } catch (err) {
                     console.error('Error in demo fallback:', err);
                 }
@@ -1036,8 +1189,8 @@ const startExam = async (req, res) => {
                     WHERE id = ${req.user.id}
                 `;
                 const userName = userNameResult.recordset[0]?.name || 'User';
-                await ensureStudentDemoExam(req.user.id, userName, normalizedCode);
-                exam = await getDemoExamFallback(req.user.id);
+                await ensureGlobalDemoExamByCode(normalizedCode, userName);
+                exam = await getExamMeta(normalizedCode, req.user.id);
             }
         }
         const attemptRandomizationEnabled = await hasAttemptRandomizationColumns();
