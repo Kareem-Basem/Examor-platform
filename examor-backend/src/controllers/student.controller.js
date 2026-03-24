@@ -169,7 +169,20 @@ const ensureStudentDemoExam = async (studentId, userName, forcedCode = null) => 
     `;
 
     if (existing.recordset[0]) {
-        return existing.recordset[0];
+        const found = existing.recordset[0];
+        if (forcedCode && String(forcedCode).trim() && String(found.exam_code || '').trim() !== String(forcedCode).trim()) {
+            try {
+                await sql.query`
+                    UPDATE exams
+                    SET exam_code = ${String(forcedCode).trim()}
+                    WHERE id = ${found.id}
+                `;
+                return { ...found, exam_code: String(forcedCode).trim() };
+            } catch (_) {
+                return found;
+            }
+        }
+        return found;
     }
 
     const examColumns = await getTableColumns('exams');
