@@ -97,7 +97,10 @@ const getDemoExamFallback = async (studentId) => {
             COALESCE(e.is_demo_exam, FALSE) AS is_demo_exam
         FROM exams e
         WHERE e.created_by = ${studentId}
-          AND COALESCE(e.is_demo_exam, FALSE) = TRUE
+          AND (
+              COALESCE(e.is_demo_exam, FALSE) = TRUE
+              OR LOWER(COALESCE(e.title, '')) LIKE 'demo exam (student onboarding)%'
+          )
         ORDER BY e.id DESC
         LIMIT 1
     `;
@@ -141,7 +144,8 @@ const getDemoExamFallback = async (studentId) => {
         completed_attempt_id: completed.completed_attempt_id || null,
         total_completed_attempts: Number(completed.total_completed_attempts || 0),
         randomize_questions: false,
-        randomize_options: false
+        randomize_options: false,
+        is_demo_exam: true
     };
 };
 
