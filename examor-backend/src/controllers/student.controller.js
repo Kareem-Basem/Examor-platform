@@ -648,7 +648,37 @@ const getAvailableExams = async (req, res) => {
 const getExamByCode = async (req, res) => {
     try {
         const { code } = req.params;
-        const exam = await getExamMeta(code, req.user.id);
+        let exam = await getExamMeta(code, req.user.id);
+
+        if (!exam) {
+            const normalizedCode = normalizeText(code).toUpperCase();
+            if (normalizedCode.startsWith('DEMO-')) {
+                const userNameResult = await sql.query`
+                    SELECT name
+                    FROM users
+                    WHERE id = ${req.user.id}
+                `;
+                const userName = userNameResult.recordset[0]?.name || 'User';
+                await createDemoExamIfMissing({
+                    userId: req.user.id,
+                    role: 'student',
+                    userName
+                });
+
+                const demoResult = await sql.query`
+                    SELECT exam_code
+                    FROM exams
+                    WHERE created_by = ${req.user.id}
+                      AND COALESCE(is_demo_exam, FALSE) = TRUE
+                    ORDER BY id DESC
+                    LIMIT 1
+                `;
+                const demoCode = demoResult.recordset[0]?.exam_code || null;
+                if (demoCode) {
+                    exam = await getExamMeta(demoCode, req.user.id);
+                }
+            }
+        }
 
         if (!exam) {
             return res.status(404).json({
