@@ -7,8 +7,10 @@ const config = useConnectionString
     ? {
         connectionString: process.env.DATABASE_URL,
         ssl: sslEnabled ? { rejectUnauthorized: false } : false,
-        max: 10,
-        idleTimeoutMillis: 30000
+        max: Number(process.env.DB_POOL_MAX || 1),
+        idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
+        connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 8000),
+        keepAlive: true
     }
     : {
         host: process.env.DB_HOST || 'localhost',
@@ -16,8 +18,10 @@ const config = useConnectionString
         user: process.env.DB_USER || 'examor_user',
         password: process.env.DB_PASSWORD || 'Examor@2026',
         database: process.env.DB_NAME || 'examor_platform',
-        max: 10,
-        idleTimeoutMillis: 30000,
+        max: Number(process.env.DB_POOL_MAX || 1),
+        idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
+        connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 8000),
+        keepAlive: true,
         ssl: sslEnabled ? { rejectUnauthorized: false } : false
     };
 
@@ -165,9 +169,10 @@ const connectDB = async () => {
     try {
         await pool.query('SELECT 1');
         console.log('? Connected to PostgreSQL successfully');
+        return true;
     } catch (error) {
         console.error('? Database connection failed:', error.message);
-        process.exit(1);
+        throw error;
     }
 };
 
