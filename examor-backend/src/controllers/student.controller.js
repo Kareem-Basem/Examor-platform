@@ -78,6 +78,73 @@ const normalizeBoolean = (value) => {
     return false;
 };
 
+const getDemoExamFallback = async (studentId) => {
+    const examResult = await sql.query`
+        SELECT
+            e.id,
+            e.title,
+            e.duration,
+            e.total_marks,
+            e.exam_code,
+            e.start_date,
+            e.end_date,
+            e.access_mode,
+            COALESCE(e.max_attempts_per_student, 1) AS max_attempts_per_student,
+            COALESCE(e.proctoring_enabled, TRUE) AS proctoring_enabled,
+            COALESCE(e.screen_capture_protection, FALSE) AS screen_capture_protection,
+            COALESCE(e.post_end_visibility_mode, 'hide') AS post_end_visibility_mode,
+            COALESCE(e.post_end_grace_minutes, 0) AS post_end_grace_minutes,
+            COALESCE(e.is_demo_exam, FALSE) AS is_demo_exam
+        FROM exams e
+        WHERE e.created_by = ${studentId}
+          AND COALESCE(e.is_demo_exam, FALSE) = TRUE
+        ORDER BY e.id DESC
+        LIMIT 1
+    `;
+
+    const exam = examResult.recordset[0];
+    if (!exam) return null;
+
+    const ongoingAttemptResult = await sql.query`
+        SELECT id, start_time, question_order_json, option_order_json
+        FROM exam_attempts
+        WHERE exam_id = ${exam.id}
+          AND student_id = ${studentId}
+          AND submit_time IS NULL
+          AND start_time <= NOW()
+        ORDER BY start_time DESC, id DESC
+        LIMIT 1
+    `;
+
+    const completedAttemptResult = await sql.query`
+        SELECT
+            COUNT(*) AS total_completed_attempts,
+            MAX(id) AS completed_attempt_id
+        FROM exam_attempts
+        WHERE exam_id = ${exam.id}
+          AND student_id = ${studentId}
+          AND submit_time IS NOT NULL
+          AND ( ${exam.start_date} IS NULL OR submit_time >= ${exam.start_date} )
+          AND submit_time <= NOW()
+    `;
+
+    const ongoing = ongoingAttemptResult.recordset[0] || {};
+    const completed = completedAttemptResult.recordset[0] || {};
+
+    return {
+        ...exam,
+        course_name: null,
+        current_attempt_id: ongoing.id || null,
+        current_attempt_start_time: ongoing.start_time || null,
+        current_question_order_json: ongoing.question_order_json || null,
+        current_option_order_json: ongoing.option_order_json || null,
+        completed_attempt_id: completed.completed_attempt_id || null,
+        total_completed_attempts: Number(completed.total_completed_attempts || 0),
+        randomize_questions: false,
+        randomize_options: false
+    };
+};
+
 const parseJsonArray = (value) => {
     if (!value) return [];
     try {
@@ -648,7 +715,12 @@ const getAvailableExams = async (req, res) => {
 const getExamByCode = async (req, res) => {
     try {
         const { code } = req.params;
-        let exam = await getExamMeta(code, req.user.id);
+        let exam;
+        try {
+            exam = await getExamMeta(code, req.user.id);
+        } catch (err) {
+            console.error('Error in getExamMeta:', err);
+        }
 
         if (!exam) {
             const normalizedCode = normalizeText(code).toUpperCase();
@@ -675,7 +747,22 @@ const getExamByCode = async (req, res) => {
                 `;
                 const demoCode = demoResult.recordset[0]?.exam_code || null;
                 if (demoCode) {
-                    exam = await getExamMeta(demoCode, req.user.id);
+                    try {
+                        exam = await getExamMeta(demoCode, req.user.id);
+                    } catch (err) {
+                        console.error('Error in demo getExamMeta:', err);
+                    }
+                }
+            }
+        }
+
+        if (!exam) {
+            const normalizedCode = normalizeText(code).toUpperCase();
+            if (normalizedCode.startsWith('DEMO-')) {
+                try {
+                    exam = await getDemoExamFallback(req.user.id);
+                } catch (err) {
+                    console.error('Error in demo fallback:', err);
                 }
             }
         }
@@ -695,14 +782,14 @@ const getExamByCode = async (req, res) => {
             });
         }
 
-        if (isNotStarted(exam)) {
+        if (!isDemoExam && isNotStarted(exam)) {
             return res.status(403).json({
                 success: false,
                 message: 'Exam has not started yet'
             });
         }
 
-        if (isExamClosedForStudents(exam)) {
+        if (!isDemoExam && isExamClosedForStudents(exam)) {
             return res.status(410).json({
                 success: false,
                 message: 'Exam is no longer available'
@@ -747,6 +834,7 @@ const getExamByCode = async (req, res) => {
             }
         });
     } catch (error) {
+        console.error('Error getting exam by code:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
