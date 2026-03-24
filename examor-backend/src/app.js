@@ -9,6 +9,7 @@ require('dotenv').config();
 const { connectDB } = require('./config/db');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Middleware
 const originList = String(process.env.CORS_ORIGINS || '')
@@ -16,10 +17,14 @@ const originList = String(process.env.CORS_ORIGINS || '')
     .map((item) => item.trim())
     .filter(Boolean);
 
+const allowVercelPreview = String(process.env.ALLOW_VERCEL_PREVIEW || 'true').toLowerCase() === 'true';
+const vercelPreviewRegex = /^https:\/\/examor-frontend(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+
 const corsOptions = originList.length > 0
     ? {
         origin: (origin, callback) => {
             if (!origin || originList.includes(origin)) return callback(null, true);
+            if (allowVercelPreview && vercelPreviewRegex.test(origin)) return callback(null, true);
             return callback(new Error('Not allowed by CORS'));
         },
         credentials: true
