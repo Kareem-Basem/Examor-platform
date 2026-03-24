@@ -105,7 +105,7 @@ function StudentDashboard() {
     } finally {
       setLoadingExams(false);
     }
-  }, [text.openError, user?.id]);
+  }, [text.openError]);
 
   useEffect(() => {
     if (!user?.id) return;
