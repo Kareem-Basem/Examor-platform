@@ -1040,7 +1040,12 @@ function AdminDashboard() {
               </td>
             </tr>
           );
-        }), { stickyLast: true })}
+        }), {
+          stickyLast: true,
+          colWidths: [
+            36, 60, 140, 200, 90, 240, 180, 140, 140, 140, 140, 260,
+          ],
+        })}
         {renderPagination('users')}
       </div>}
       {activeTab === 'exams' && <div style={styles.card}><div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>{sortControl('exams')}<div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{exportButtons('exams')}<button type="button" onClick={refreshActiveTab} style={styles.btn(colors.cardBg2, colors.text)}>{t.refresh}</button></div></div><div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>{searchInput('exams', t.searchExams)}{examFilter}</div>{renderTable(['ID', t.examTitle, t.examCode, t.accessMode, t.teacher, t.questions, t.attemptsCount, t.start, t.end, t.actions], paged.exams.items.map((item, index) => <tr key={item.id} style={styles.row(index)}><td style={styles.td}>{item.id}</td><td style={{ ...styles.td, color: colors.text }}>{item.title}</td><td style={styles.td}>{item.exam_code || '-'}</td><td style={styles.td}>{item.access_mode}</td><td style={styles.td}>{item.teacher_name || '-'}</td><td style={styles.td}>{item.question_count ?? 0}</td><td style={styles.td}>{item.attempt_count ?? 0}</td><td style={styles.td}>{fmt(item.start_date)}</td><td style={styles.td}>{fmt(item.end_date)}</td><td style={styles.td}><button type="button" onClick={async () => { try { await handleUpdateExam(item); } catch (err) { notifyError(err); } }} style={styles.btn(colors.cardBg2, colors.text)}>{t.updateExam}</button></td></tr>))}{renderPagination('exams')}</div>}
@@ -1077,11 +1082,7 @@ function AdminDashboard() {
                     <option value="independent">{t.independent}</option>
                   </select>
                 </div>
-          )}, {
-            colWidths: [
-              36, 60, 140, 200, 90, 240, 180, 140, 140, 140, 140, 260,
-            ],
-          })}
+              )}
               <div>
                 <label style={{ display: 'block', marginBottom: 6, color: colors.textMuted, fontSize: 12 }}>{t.university}</label>
                 <select
