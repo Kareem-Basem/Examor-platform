@@ -98,14 +98,7 @@ function StudentDashboard() {
     try {
       const res = await API.get('/student/exams');
       const data = Array.isArray(res.data.data) ? res.data.data : [];
-      const demoPrefix = user?.id ? `DEMO-STUDENT-${user.id}-` : null;
-      const filtered = data.filter((exam) => {
-        const isDemo = Number(exam?.is_demo_exam || 0) === 1;
-        if (!isDemo) return true;
-        if (!demoPrefix) return false;
-        return typeof exam.exam_code === 'string' && exam.exam_code.startsWith(demoPrefix);
-      });
-      setExams(filtered);
+      setExams(data);
     } catch (err) {
       console.error(err);
       setLoadError(text.openError);
