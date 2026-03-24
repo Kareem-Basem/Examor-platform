@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import API from '../api/axios';
@@ -29,7 +29,7 @@ function ProfilePage() {
   const isTeacher = role === 'teacher';
   const isStudent = role === 'student';
 
-  const text = useMemo(() => ({
+    const text = useMemo(() => ({
     profile: isAr ? 'الحساب' : 'Profile',
     personalInfo: isAr ? 'البيانات الشخصية' : 'Personal Information',
     academicInfo: isAr ? 'البيانات الأكاديمية' : 'Academic Information',
@@ -74,15 +74,21 @@ function ProfilePage() {
     scoreLabel: isAr ? 'الدرجة' : 'Score',
     byStudent: isAr ? 'الطالب' : 'Student',
     accessMode: isAr ? 'آلية الوصول' : 'Access mode',
-    academicPendingTitleTeacher: isAr ? '\u062d\u0633\u0627\u0628 \u0645\u062f\u0631\u0633 \u0623\u0643\u0627\u062f\u064a\u0645\u064a \u0641\u064a \u0627\u0646\u062a\u0638\u0627\u0631 \u0627\u0644\u0645\u0648\u0627\u0641\u0642\u0629' : 'Academic teacher account pending approval',
-    academicPendingTitleStudent: isAr ? '\u062d\u0633\u0627\u0628 \u0637\u0627\u0644\u0628 \u0623\u0643\u0627\u062f\u064a\u0645\u064a \u0641\u064a \u0627\u0646\u062a\u0638\u0627\u0631 \u0627\u0644\u0645\u0648\u0627\u0641\u0642\u0629' : 'Academic student account pending approval',
+    teacherProfile: isAr ? 'ملف المدرس' : 'Teacher Profile',
+    studentProfile: isAr ? 'ملف الطالب' : 'Student Profile',
+    profileIntro: isAr ? 'عدّل بياناتك الأساسية ثم احفظ التغييرات.' : 'Update your basic information, then save changes.',
+    academicInfoHint: isAr ? 'هذه البيانات تعكس ارتباطك الأكاديمي الحالي.' : 'These fields reflect your current academic affiliation.',
+    activityHint: isAr ? 'آخر العمليات التي تمت على حسابك.' : 'Latest actions performed on your account.',
+    securityHint: isAr ? 'غيّر كلمة المرور بشكل آمن من هنا.' : 'Change your password securely from here.',
+    academicPendingTitleTeacher: isAr ? "حساب مدرس أكاديمي في انتظار الموافقة" : 'Academic teacher account pending approval',
+    academicPendingTitleStudent: isAr ? "حساب طالب أكاديمي في انتظار الموافقة" : 'Academic student account pending approval',
     academicPendingDescTeacher: isAr
-      ? '\u0633\u064a\u062a\u0645 \u062a\u0641\u0639\u064a\u0644 \u062d\u0633\u0627\u0628\u0643 \u0628\u0648\u0627\u0633\u0637\u0629 \u0627\u0644\u0623\u062f\u0645\u0646. \u062d\u062a\u0649 \u0627\u0644\u0627\u0646 \u0644\u0646 \u062a\u062a\u0645\u0643\u0646 \u0645\u0646 \u0627\u0644\u062f\u062e\u0648\u0644 \u0644\u0644\u0648\u062d\u0629 \u0627\u0644\u062f\u0643\u062a\u0648\u0631 \u0623\u0648 \u0625\u0646\u0634\u0627\u0621 \u0627\u0645\u062a\u062d\u0627\u0646\u0627\u062a \u0642\u0633\u0645\u064a\u0629.'
+      ? "سيتم تفعيل حسابك بواسطة الأدمن. حتى الان لن تتمكن من الدخول للوحة الدكتور أو إنشاء امتحانات قسمية."
       : 'Your account needs admin verification before you can access the doctor dashboard or create department exams.',
     academicPendingDescStudent: isAr
-      ? '\u0633\u064a\u062a\u0645 \u062a\u0641\u0639\u064a\u0644 \u062d\u0633\u0627\u0628\u0643 \u0628\u0648\u0627\u0633\u0637\u0629 \u0627\u0644\u0623\u062f\u0645\u0646. \u062d\u062a\u0649 \u0627\u0644\u0627\u0646 \u0644\u0646 \u062a\u062a\u0645\u0643\u0646 \u0645\u0646 \u062f\u062e\u0648\u0644 \u0627\u0644\u0644\u0648\u062d\u0629 \u0627\u0644\u0637\u0644\u0627\u0628\u064a\u0629 \u0623\u0648 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646\u0627\u062a \u062d\u062a\u0649 \u062a\u0645 \u0627\u0644\u062a\u0641\u0639\u064a\u0644.'
+      ? "سيتم تفعيل حسابك بواسطة الأدمن. حتى الان لن تتمكن من دخول اللوحة الطلابية أو الامتحانات حتى تم التفعيل."
       : 'Your account needs admin verification before you can access the student dashboard or exams.',
-    academicPendingHint: isAr ? '\u064a\u0631\u062c\u0649 \u0627\u0644\u062a\u0648\u0627\u0635\u0644 \u0645\u0639 \u0627\u0644\u0625\u062f\u0627\u0631\u0629 \u0644\u062a\u0633\u0631\u064a\u0639 \u0639\u0645\u0644\u064a\u0629 \u0627\u0644\u062a\u0641\u0639\u064a\u0644.' : 'Please contact the admin to complete verification.',
+    academicPendingHint: isAr ? "يرجى التواصل مع الإدارة لتسريع عملية التفعيل." : 'Please contact the admin to complete verification.',
   }), [isAr]);
 
   const [loading, setLoading] = useState(true);
@@ -302,32 +308,32 @@ function ProfilePage() {
       case 'exam_submitted':
         return {
           title: `${text.submittedExam}${examCode}`,
-          detail: extraText ? `${subject} â€¢ ${text.scoreLabel}: ${extraText}` : subject,
+          detail: extraText ? `${subject} • ${text.scoreLabel}: ${extraText}` : subject,
         };
       case 'exam_force_submitted':
         return {
           title: `${text.forceSubmittedExam}${examCode}`,
-          detail: extraText ? `${subject} â€¢ ${text.scoreLabel}: ${extraText}` : subject,
+          detail: extraText ? `${subject} • ${text.scoreLabel}: ${extraText}` : subject,
         };
       case 'exam_created':
         return {
           title: `${text.createdExam}${examCode}`,
-          detail: extraText ? `${subject} â€¢ ${text.accessMode}: ${extraText}` : subject,
+          detail: extraText ? `${subject} • ${text.accessMode}: ${extraText}` : subject,
         };
       case 'question_saved_to_bank':
         return {
           title: text.savedQuestionToBank,
-          detail: extraText ? `${subject} â€¢ ${extraText}` : subject,
+          detail: extraText ? `${subject} • ${extraText}` : subject,
         };
       case 'attempt_submitted':
         return {
           title: `${text.studentSubmittedAttempt}${examCode}`,
-          detail: extraText ? `${subject} â€¢ ${text.byStudent}: ${extraText}` : subject,
+          detail: extraText ? `${subject} • ${text.byStudent}: ${extraText}` : subject,
         };
       case 'attempt_force_submitted':
         return {
           title: `${text.studentForcedAttempt}${examCode}`,
-          detail: extraText ? `${subject} â€¢ ${text.byStudent}: ${extraText}` : subject,
+          detail: extraText ? `${subject} • ${text.byStudent}: ${extraText}` : subject,
         };
       default:
         return {
@@ -365,7 +371,7 @@ function ProfilePage() {
       <div style={{ ...cardBase, padding: 18, marginBottom: 16 }}>
         <div style={{ color: colors.text, fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>{text.profile}</div>
         <div style={{ color: colors.textMuted, fontSize: 12, marginBottom: 8 }}>
-          {isTeacher ? (isAr ? '??? ??????' : 'Teacher Profile') : (isAr ? '??? ??????' : 'Student Profile')}
+          {isTeacher ? text.teacherProfile : text.studentProfile}
         </div>
         <div style={{ color: colors.textMuted, fontSize: 13, lineHeight: 1.8 }}>
           {isTeacher ? text.teacherHint : text.studentHint}
@@ -376,7 +382,7 @@ function ProfilePage() {
         <form onSubmit={handleSaveProfile} style={{ ...cardBase, padding: 18 }}>
           <div style={sectionTitle}>{text.personalInfo}</div>
           <div style={sectionHint}>
-            {isAr ? '???? ??????? ???????? ?? ???? ?????????.' : 'Update your basic information, then save changes.'}
+            {text.profileIntro}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
@@ -427,7 +433,7 @@ function ProfilePage() {
           <div style={{ ...cardBase, padding: 18 }}>
             <div style={sectionTitle}>{text.academicInfo}</div>
             <div style={sectionHint}>
-              {isAr ? '??? ???????? ???? ??????? ??????? ??????.' : 'These fields reflect your current academic affiliation.'}
+              {text.academicInfoHint}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
               {infoCards.map(([label, value]) => (
@@ -445,7 +451,7 @@ function ProfilePage() {
           <div style={{ ...cardBase, padding: 18 }}>
             <div style={sectionTitle}>{text.recentActivity}</div>
             <div style={{ ...sectionHint, marginBottom: 10 }}>
-              {isAr ? '??? ???????? ???? ??? ??? ?????.' : 'Latest actions performed on your account.'}
+              {text.activityHint}
             </div>
             {activity.length === 0 ? (
               <div style={{ color: colors.textMuted, fontSize: 13 }}>{text.noActivity}</div>
@@ -482,7 +488,7 @@ function ProfilePage() {
           <form onSubmit={handleChangePassword} style={{ ...cardBase, padding: 18 }}>
             <div style={sectionTitle}>{text.security}</div>
             <div style={sectionHint}>
-              {isAr ? '???? ???? ?????? ???? ??? ?? ???.' : 'Change your password securely from here.'}
+              {text.securityHint}
             </div>
             <div style={{ display: 'grid', gap: 12 }}>
               <div>
@@ -515,6 +521,7 @@ function ProfilePage() {
 }
 
 export default ProfilePage;
+
 
 
 

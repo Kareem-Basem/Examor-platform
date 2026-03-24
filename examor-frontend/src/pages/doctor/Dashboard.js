@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import mammoth from 'mammoth/mammoth.browser';
@@ -167,7 +167,7 @@ function DoctorDashboard() {
       examNeedsQuestionsHint: isAr ? '\u0644\u0627 \u064a\u0645\u0643\u0646 \u0627\u0639\u062a\u0628\u0627\u0631 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646 \u062c\u0627\u0647\u0632\u064b\u0627 \u062d\u062a\u0649 \u062a\u0636\u064a\u0641 \u0627\u0644\u0623\u0633\u0626\u0644\u0629.' : 'The exam should not be considered ready until you add questions.',
       manageQuestions: isAr ? '\u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0623\u0633\u0626\u0644\u0629' : 'Manage Questions',
       zeroQuestionsStatus: isAr ? '\u0628\u062f\u0648\u0646 \u0623\u0633\u0626\u0644\u0629' : 'No Questions Yet',
-      questionBuilderHint: isAr ? '\u0628\u0639\u062f \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646\u060c \u0627\u0636\u063a\u0637 \u0639\u0644\u0649 \u201c\u0625\u0636\u0627\u0641\u0629 \u0633\u0624\u0627\u0644\u201d \u0645\u0646 \u0628\u0637\u0627\u0642\u0629 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646 \u0623\u0648 \u0645\u0646 \u0646\u0627\u0641\u0630\u0629 \u0639\u0631\u0636 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646.' : 'After creating the exam, use “Add Question” from the exam card or the exam preview window.',
+      questionBuilderHint: isAr ? '\u0628\u0639\u062f \u0625\u0646\u0634\u0627\u0621 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646\u060c \u0627\u0636\u063a\u0637 \u0639\u0644\u0649 \u201c\u0625\u0636\u0627\u0641\u0629 \u0633\u0624\u0627\u0644\u201d \u0645\u0646 \u0628\u0637\u0627\u0642\u0629 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646 \u0623\u0648 \u0645\u0646 \u0646\u0627\u0641\u0630\u0629 \u0639\u0631\u0636 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646.' : 'After creating the exam, use â€œAdd Questionâ€ from the exam card or the exam preview window.',
       deleteExamForceWarning: isAr ? '\u0647\u0630\u0627 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646 \u0644\u062f\u064a\u0647 \u0645\u062d\u0627\u0648\u0644\u0627\u062a \u0637\u0644\u0627\u0628 \u0645\u0631\u062a\u0628\u0637\u0629. \u0639\u0646\u062f \u0627\u0644\u0645\u0648\u0627\u0641\u0642\u0629 \u0633\u064a\u062a\u0645 \u062d\u0630\u0641 \u0627\u0644\u0627\u0645\u062a\u062d\u0627\u0646 \u0648\u0623\u0633\u0626\u0644\u062a\u0647 \u0648\u062c\u0645\u064a\u0639 \u0627\u0644\u0645\u062d\u0627\u0648\u0644\u0627\u062a \u0648\u0627\u0644\u0646\u062a\u0627\u0626\u062c. \u0647\u0644 \u062a\u0631\u064a\u062f \u0627\u0644\u0625\u0643\u0645\u0627\u0644\u061f' : 'This exam already has student attempts. Continuing will delete the exam, its questions, and all related attempts/results. Do you want to continue?',
       questionBuilderTitle: isAr ? '\u0628\u0627\u0646\u064a \u0627\u0644\u0623\u0633\u0626\u0644\u0629' : 'Question Builder',
       currentQuestionNo: isAr ? '\u0631\u0642\u0645 \u0627\u0644\u0633\u0624\u0627\u0644 \u0627\u0644\u062d\u0627\u0644\u064a' : 'Current Question Number',
@@ -187,7 +187,7 @@ function DoctorDashboard() {
       backToImportEditor: isAr ? '\u0627\u0644\u0639\u0648\u062f\u0629 \u0644\u062a\u062d\u0631\u064a\u0631 \u0627\u0644\u0646\u0635' : 'Back to Import Editor',
       noParsedOptions: isAr ? '\u0644\u0645 \u064a\u062a\u0645 \u0627\u0633\u062a\u062e\u0631\u0627\u062c \u0627\u062e\u062a\u064a\u0627\u0631\u0627\u062a \u0644\u0647\u0630\u0627 \u0627\u0644\u0633\u0624\u0627\u0644.' : 'No options were extracted for this question.',
       extractedAnswer: isAr ? '\u0627\u0644\u0625\u062c\u0627\u0628\u0629 \u0627\u0644\u0645\u0633\u062a\u062e\u0631\u062c\u0629' : 'Extracted Answer',
-      wordImportNote: isAr ? '\u0627\u0631\u0641\u0639 \u0645\u0644\u0641 Word بصيغة .docx \u0644\u0627\u0633\u062a\u062e\u0631\u0627\u062c \u0627\u0644\u0623\u0633\u0626\u0644\u0629 \u062b\u0645 \u0631\u0627\u062c\u0639 \u0627\u0644\u0645\u0639\u0627\u064a\u0646\u0629 \u0642\u0628\u0644 \u0627\u0644\u0627\u0633\u062a\u064a\u0631\u0627\u062f.' : 'Upload a Word .docx file to extract its questions, then review the preview before importing.',
+      wordImportNote: isAr ? 'ارفع ملف Word بصيغة .docx لاستخراج الأسئلة ثم راجع المعاينة قبل الاستيراد.' : 'Upload a Word .docx file to extract its questions, then review the preview before importing.',
       duplicateQuestion: isAr ? '\u0646\u0633\u062e \u0627\u0644\u0633\u0624\u0627\u0644' : 'Duplicate Question',
       moveUp: isAr ? '\u062a\u062d\u0631\u064a\u0643 \u0644\u0623\u0639\u0644\u0649' : 'Move Up',
       moveDown: isAr ? '\u062a\u062d\u0631\u064a\u0643 \u0644\u0623\u0633\u0641\u0644' : 'Move Down',
@@ -1047,8 +1047,8 @@ function DoctorDashboard() {
 
   const normalizeImportedText = useCallback((value) => String(value || '')
     .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
-    .replace(/Ø§Ù„Ø¥Ø¬Ø§Ø¨Ø©|Ø§Ù„Ø§Ø¬Ø§Ø¨Ø©/g, 'الإجابة')
-    .replace(/ï¼š/g, ':')
+    .replace(/الإجابة|الاجابة/g, 'الإجابة')
+    .replace(/：/g, ':')
     .replace(/[•●▪■]/g, '-')
     .split('\u0000').join('')
     .trim(), []);
@@ -1058,8 +1058,6 @@ function DoctorDashboard() {
     if (['a', 'b', 'c', 'd', 'e', 'f'].includes(raw)) return raw;
     if (['1', '2', '3', '4', '5', '6'].includes(raw)) return raw;
     if (['true', 't', 'صح', 'صحيح'].includes(raw)) return 'true';
-    if (['false', 'f', 'خطأ', 'خطا', 'غلط'].includes(raw)) return 'false';
-    return raw;
   }, [normalizeImportedText]);
 
   const applyAnswerKeyToBlock = useCallback((block, token) => {
@@ -1121,8 +1119,8 @@ function DoctorDashboard() {
         return;
       }
 
-      if (/^(answer|model answer|الإجابة|الاجابة)\s*[:：]/i.test(line)) {
-        current.answer = line.replace(/^(answer|model answer|الإجابة|الاجابة)\s*[:：]\s*/i, '').trim();
+      if (/^(answer|model answer|الإجابة|الاجابة)\\s*[:：]/i.test(line)) {
+        current.answer = line.replace(/^(answer|model answer|الإجابة|الاجابة)\\s*[:：]\s*/i, '').trim();
         return;
       }
 
@@ -1182,7 +1180,7 @@ function DoctorDashboard() {
         return;
       }
 
-      const questionMatch = line.match(/^(?:question\s*|q\s*|سؤال\s*|س\s*)?(\d+)\s*[.)\-:]\s+(.+)$/i);
+      const questionMatch = line.match(/^(?:question\\s*|q\\s*|سؤال\\s*|س\\s*)?(\d+)\s*[.)\-:]\s+(.+)$/i);
       const optionMatch = line.match(/^([A-Da-d]|[1-6]|[أ-د])\s*[.)\-:]\s+(.+)$/);
 
       if (questionMatch) {
@@ -1200,7 +1198,7 @@ function DoctorDashboard() {
       }
 
       if (/^(answer|model answer|الإجابة|الاجابة)\s*:/i.test(line)) {
-        current.answer = line.replace(/^(answer|model answer|الإجابة|الاجابة)\s*:\s*/i, '').trim();
+        current.answer = line.replace(/^(answer|model answer|الإجابة|الاجابة)\\s*:\\s*/i, '').trim();
         if (['true', 'false', 'صح', 'صحيح', 'خطأ', 'خطا', 'غلط'].includes(current.answer.toLowerCase())) {
           current.type = 'TrueFalse';
         }
@@ -1229,7 +1227,7 @@ function DoctorDashboard() {
         if (normalizedOptions.every((option) => ['true', 'false', 'صح', 'صحيح', 'خطأ', 'خطا', 'غلط'].includes(option))) {
           block.type = 'TrueFalse';
           if (!block.answer) {
-            block.answer = normalizedOptions[0].includes('false') || normalizedOptions[0].includes('خط') || normalizedOptions[0].includes('غلط')
+            block.answer = normalizedOptions[0].includes('false') || normalizedOptions[0].includes('®·') || normalizedOptions[0].includes('ºÙ„·')
               ? 'false'
               : 'true';
           }
@@ -1593,7 +1591,7 @@ function DoctorDashboard() {
       course.branch_name ? `${text.branch}: ${course.branch_name}` : null,
       course.university_name ? `${text.university}: ${course.university_name}` : null,
     ].filter(Boolean);
-    return parts.join(' • ');
+    return parts.join(' â€¢ ');
   }, [text.academicYear, text.branch, text.department, text.faculty, text.university]);
 
   const visibleExams = useMemo(() => {
@@ -2964,3 +2962,8 @@ function DoctorDashboard() {
 }
 
 export default DoctorDashboard;
+
+
+
+
+
