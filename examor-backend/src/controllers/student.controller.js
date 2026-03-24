@@ -145,6 +145,154 @@ const getDemoExamFallback = async (studentId) => {
     };
 };
 
+const getTableColumns = async (tableName) => {
+    const result = await sql.query`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = ${tableName}
+    `;
+    return new Set((result.recordset || []).map((row) => String(row.column_name || '').toLowerCase()));
+};
+
+const ensureStudentDemoExam = async (studentId, userName) => {
+    const existing = await sql.query`
+        SELECT id, exam_code
+        FROM exams
+        WHERE created_by = ${studentId}
+          AND COALESCE(is_demo_exam, FALSE) = TRUE
+        ORDER BY id DESC
+        LIMIT 1
+    `;
+
+    if (existing.recordset[0]) {
+        return existing.recordset[0];
+    }
+
+    const examColumns = await getTableColumns('exams');
+    if (!examColumns.has('is_demo_exam')) return null;
+
+    const demoCode = `DEMO-STUDENT-${studentId}-${Date.now().toString(36).slice(-5).toUpperCase()}`;
+    const demoTitle = 'Demo Exam (Student Onboarding)';
+    const demoDuration = 10;
+    const demoTotalMarks = 10;
+    const demoMaxAttempts = 3;
+    const demoProctoringEnabled = true;
+    const demoScreenProtection = true;
+
+    const cols = [];
+    const vals = [];
+
+    const push = (col, value) => {
+        cols.push(col);
+        vals.push(value);
+    };
+
+    if (examColumns.has('title')) push('title', demoTitle);
+    if (examColumns.has('created_by')) push('created_by', studentId);
+    if (examColumns.has('duration')) push('duration', demoDuration);
+    if (examColumns.has('total_marks')) push('total_marks', demoTotalMarks);
+    if (examColumns.has('exam_code')) push('exam_code', demoCode);
+    if (examColumns.has('access_mode')) push('access_mode', 'link');
+    if (examColumns.has('post_end_visibility_mode')) push('post_end_visibility_mode', 'archive');
+    if (examColumns.has('post_end_grace_minutes')) push('post_end_grace_minutes', 0);
+    if (examColumns.has('max_attempts_per_student')) push('max_attempts_per_student', demoMaxAttempts);
+    if (examColumns.has('proctoring_enabled')) push('proctoring_enabled', demoProctoringEnabled);
+    if (examColumns.has('screen_capture_protection')) push('screen_capture_protection', demoScreenProtection);
+    if (examColumns.has('allow_custom_exam_code')) push('allow_custom_exam_code', false);
+    if (examColumns.has('is_demo_exam')) push('is_demo_exam', true);
+
+    if (cols.length === 0) return null;
+
+    const params = vals.map((_, idx) => `$${idx + 1}`).join(', ');
+    const insertResult = await sql.query(
+        `INSERT INTO exams (${cols.join(', ')}) VALUES (${params}) RETURNING id, exam_code`,
+        ...vals
+    );
+
+    const demoExam = insertResult.recordset[0];
+    if (!demoExam?.id) return null;
+
+    const questionColumns = await getTableColumns('questions');
+    const hasQuestionOrder = questionColumns.has('question_order');
+
+    const safeName = typeof userName === 'string' && userName.trim() ? userName.trim() : 'User';
+    const demoQuestions = [
+        {
+            text: `Welcome ${safeName}! Which action starts an exam?`,
+            type: 'MCQ',
+            marks: 2,
+            answer: null,
+            options: [
+                { text: 'Press "Start Exam"', isCorrect: true },
+                { text: 'Close the browser', isCorrect: false },
+                { text: 'Refresh the page repeatedly', isCorrect: false }
+            ]
+        },
+        {
+            text: 'True or False: Your answers are autosaved during the exam.',
+            type: 'TrueFalse',
+            marks: 2,
+            answer: 'true',
+            options: []
+        },
+        {
+            text: 'Which action submits your attempt when you finish?',
+            type: 'MCQ',
+            marks: 2,
+            answer: null,
+            options: [
+                { text: 'Press "Submit Exam"', isCorrect: true },
+                { text: 'Close the tab', isCorrect: false },
+                { text: 'Wait until browser closes', isCorrect: false }
+            ]
+        },
+        {
+            text: 'True or False: Exiting fullscreen repeatedly may trigger proctoring violations.',
+            type: 'TrueFalse',
+            marks: 2,
+            answer: 'true',
+            options: []
+        },
+        {
+            text: 'Write one short line describing your exam strategy.',
+            type: 'Essay',
+            marks: 2,
+            answer: null,
+            options: []
+        }
+    ];
+
+    for (let i = 0; i < demoQuestions.length; i += 1) {
+        const question = demoQuestions[i];
+        const questionInsert = hasQuestionOrder
+            ? `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               RETURNING id`
+            : `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id`;
+
+        const questionParams = hasQuestionOrder
+            ? [demoExam.id, question.text, question.type, question.marks, question.answer, i + 1]
+            : [demoExam.id, question.text, question.type, question.marks, question.answer];
+
+        const questionResult = await sql.query(questionInsert, ...questionParams);
+        const questionId = questionResult.recordset[0]?.id;
+        if (!questionId || !Array.isArray(question.options) || question.options.length === 0) continue;
+
+        for (const option of question.options) {
+            await sql.query(
+                'INSERT INTO options (question_id, option_text, is_correct) VALUES ($1, $2, $3)',
+                questionId,
+                option.text,
+                option.isCorrect ? 1 : 0
+            );
+        }
+    }
+
+    return demoExam;
+};
+
 const parseJsonArray = (value) => {
     if (!value) return [];
     try {
@@ -760,6 +908,13 @@ const getExamByCode = async (req, res) => {
             const normalizedCode = normalizeText(code).toUpperCase();
             if (normalizedCode.startsWith('DEMO-')) {
                 try {
+                    const userNameResult = await sql.query`
+                        SELECT name
+                        FROM users
+                        WHERE id = ${req.user.id}
+                    `;
+                    const userName = userNameResult.recordset[0]?.name || 'User';
+                    await ensureStudentDemoExam(req.user.id, userName);
                     exam = await getDemoExamFallback(req.user.id);
                 } catch (err) {
                     console.error('Error in demo fallback:', err);
@@ -846,7 +1001,26 @@ const startExam = async (req, res) => {
     try {
         const { code } = req.params;
         const sessionKey = req.body?.session_key;
-        const exam = await getExamMeta(code, req.user.id);
+        let exam;
+        try {
+            exam = await getExamMeta(code, req.user.id);
+        } catch (err) {
+            console.error('Error in getExamMeta (startExam):', err);
+        }
+
+        if (!exam) {
+            const normalizedCode = normalizeText(code).toUpperCase();
+            if (normalizedCode.startsWith('DEMO-')) {
+                const userNameResult = await sql.query`
+                    SELECT name
+                    FROM users
+                    WHERE id = ${req.user.id}
+                `;
+                const userName = userNameResult.recordset[0]?.name || 'User';
+                await ensureStudentDemoExam(req.user.id, userName);
+                exam = await getDemoExamFallback(req.user.id);
+            }
+        }
         const attemptRandomizationEnabled = await hasAttemptRandomizationColumns();
 
         if (!exam) {
@@ -864,14 +1038,14 @@ const startExam = async (req, res) => {
             });
         }
 
-        if (isNotStarted(exam)) {
+        if (!isDemoExam && isNotStarted(exam)) {
             return res.status(403).json({
                 success: false,
                 message: 'Exam has not started yet'
             });
         }
 
-        if (isExamClosedForStudents(exam)) {
+        if (!isDemoExam && isExamClosedForStudents(exam)) {
             return res.status(410).json({
                 success: false,
                 message: 'Exam is no longer available'
