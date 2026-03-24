@@ -595,7 +595,7 @@ const getExamMeta = async (code, studentId) => {
     const attemptRandomizationEnabled = await hasAttemptRandomizationColumns();
     const request = new sql.Request();
     request.input('studentId', sql.Int, studentId);
-    request.input('examCode', sql.NVarChar(50), code);
+    request.input('examCode', sql.NVarChar, code);
 
     const query = `
         WITH candidate_exams AS (
