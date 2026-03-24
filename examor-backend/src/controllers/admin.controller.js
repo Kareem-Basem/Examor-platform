@@ -417,8 +417,9 @@ const setUserAcademicVerification = async (req, res) => {
         request.input('userId', sql.Int, userId);
         request.input('academic_verified', sql.Bit, academicVerified ? true : false);
 
-        if (hasAcademicEmailConfirmedColumn && academicVerified) {
-            updates.push('academic_email_confirmed = 1');
+        if (hasAcademicEmailConfirmedColumn) {
+            updates.push('academic_email_confirmed = @academic_email_confirmed');
+            request.input('academic_email_confirmed', sql.Bit, academicVerified ? true : false);
         }
 
         if (hasAcademicVerifiedByColumn) {
@@ -750,8 +751,8 @@ const setUsersBulkAcademicVerification = async (req, res) => {
         }).join(', ');
 
         const updates = [`academic_verified = ${academicVerified ? 'TRUE' : 'FALSE'}`];
-        if (hasAcademicEmailConfirmedColumn && academicVerified) {
-            updates.push('academic_email_confirmed = 1');
+        if (hasAcademicEmailConfirmedColumn) {
+            updates.push(`academic_email_confirmed = ${academicVerified ? 'TRUE' : 'FALSE'}`);
         }
         if (hasAcademicVerifiedByColumn) {
             updates.push(`academic_verified_by_admin_id = ${academicVerified ? req.user.id : 'NULL'}`);
