@@ -1420,6 +1420,7 @@ const submitExam = async (req, res) => {
             }
         }
 
+        const normalizedViolations = violations && typeof violations === 'object' ? violations : {};
         const graceMinutes = Math.max(0, Number(attempt.post_end_grace_minutes || 0));
         const durationExceeded = Boolean(
             attempt.start_time &&
@@ -1444,7 +1445,6 @@ const submitExam = async (req, res) => {
             { key: 'cameraDenied', type: 'camera_denied', reason: 'Camera permission was denied' },
             { key: 'cameraOff', type: 'camera_off', reason: 'Camera stopped during the exam' }
         ];
-        const normalizedViolations = violations && typeof violations === 'object' ? violations : {};
 
         transaction = new sql.Transaction();
         await transaction.begin();
