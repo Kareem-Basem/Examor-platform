@@ -102,7 +102,7 @@ const useProctoring = ({
         if (now - lastTabViolationRef.current < 1200) return;
         lastTabViolationRef.current = now;
         warnOrForce('tabSwitch', warningMsg, forceMsg);
-    }, [onViolation, warnOrForce]);
+    }, [warnOrForce]);
 
     const handleVisibility = useCallback(() => {
         if (!active.current) return;
@@ -160,7 +160,7 @@ const useProctoring = ({
                 } catch (_) {}
             }, 150);
         }
-    }, [warnOrForce]);
+    }, [onViolation, warnOrForce]);
 
     const blockCopy = useCallback((e) => {
         if (!active.current) return;
