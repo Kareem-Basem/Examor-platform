@@ -556,8 +556,8 @@ const deleteUser = async (req, res) => {
                             await tx.query(`
                                 UPDATE users
                                 SET ${updates.join(', ')}
-                                WHERE academic_verified_by_admin_id = $1
-                            `, userId);
+                                WHERE academic_verified_by_admin_id = ${userId}
+                            `);
                         }
                     }
                 }
