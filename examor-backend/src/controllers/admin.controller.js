@@ -541,6 +541,50 @@ const deleteUser = async (req, res) => {
                 await transaction.begin();
                 const tx = new sql.Request(transaction);
 
+                if (await hasColumn('users', 'academic_verified_by_admin_id')) {
+                    await tx.query`
+                        UPDATE users
+                        SET academic_verified_by_admin_id = NULL,
+                            academic_verified_at = NULL,
+                            academic_verified = FALSE,
+                            academic_email_confirmed = FALSE
+                        WHERE academic_verified_by_admin_id = ${userId}
+                    `;
+                }
+
+                if (await hasTable('admin_audit_logs')) {
+                    await tx.query`
+                        DELETE FROM admin_audit_logs
+                        WHERE admin_id = ${userId}
+                    `;
+                }
+
+                if (await hasTable('answers') && (await hasColumn('answers', 'reviewed_by'))) {
+                    await tx.query`
+                        UPDATE answers
+                        SET reviewed_by = NULL,
+                            reviewed_at = NULL
+                        WHERE reviewed_by = ${userId}
+                    `;
+                }
+
+                if (await hasTable('question_bank')) {
+                    if (await hasTable('question_bank_options')) {
+                        await tx.query`
+                            DELETE FROM question_bank_options
+                            WHERE bank_question_id IN (
+                                SELECT id
+                                FROM question_bank
+                                WHERE doctor_id = ${userId}
+                            )
+                        `;
+                    }
+                    await tx.query`
+                        DELETE FROM question_bank
+                        WHERE doctor_id = ${userId}
+                    `;
+                }
+
                 if (await hasTable('proctoring_violations')) {
                     await tx.query`
                         DELETE FROM proctoring_violations
