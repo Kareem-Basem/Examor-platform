@@ -312,6 +312,170 @@ const addCourse = async (req, res) => {
     }
 };
 
+const updateBranch = async (req, res) => {
+    try {
+        const branchId = Number(req.params.id);
+        const universityId = Number(req.body.university_id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        const city = typeof req.body.city === 'string' ? req.body.city.trim() : '';
+        if (!Number.isInteger(branchId) || branchId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid branch id' });
+        }
+        if (!Number.isInteger(universityId) || universityId <= 0 || !name || !city) {
+            return res.status(400).json({ success: false, message: 'Please provide university_id, name and city' });
+        }
+
+        const result = await sql.query`
+            UPDATE branches
+            SET university_id = ${universityId}, name = ${name}, city = ${city}
+            WHERE id = ${branchId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Branch not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'update_branch', 'branch', branchId, JSON.stringify({ universityId, name, city }));
+        res.status(200).json({ success: true, message: 'Branch updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const updateCourse = async (req, res) => {
+    try {
+        const courseId = Number(req.params.id);
+        const departmentId = Number(req.body.department_id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        const level = typeof req.body.level === 'string' ? req.body.level.trim() : '';
+        if (!Number.isInteger(courseId) || courseId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid course id' });
+        }
+        if (!Number.isInteger(departmentId) || departmentId <= 0 || !name || !level) {
+            return res.status(400).json({ success: false, message: 'Please provide department_id, name and level' });
+        }
+
+        const result = await sql.query`
+            UPDATE courses
+            SET department_id = ${departmentId}, name = ${name}, level = ${level}
+            WHERE id = ${courseId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Course not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'update_course', 'course', courseId, JSON.stringify({ departmentId, name, level }));
+        res.status(200).json({ success: true, message: 'Course updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const updateDepartment = async (req, res) => {
+    try {
+        const hasFaculties = (await hasTable('faculties')) && (await hasColumn('departments', 'faculty_id'));
+        const departmentId = Number(req.params.id);
+        const facultyId = req.body.faculty_id ? Number(req.body.faculty_id) : null;
+        let branchId = Number(req.body.branch_id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        if (!Number.isInteger(departmentId) || departmentId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid department id' });
+        }
+
+        if (hasFaculties && facultyId) {
+            const faculty = await getFacultyRecord(facultyId);
+            if (!faculty) {
+                return res.status(404).json({ success: false, message: 'Faculty not found' });
+            }
+            if (Number.isInteger(branchId) && branchId > 0 && Number(faculty.branch_id) !== branchId) {
+                return res.status(400).json({ success: false, message: 'Faculty does not belong to the selected branch' });
+            }
+            branchId = Number(faculty.branch_id);
+        }
+
+        if (!Number.isInteger(branchId) || branchId <= 0 || !name) {
+            return res.status(400).json({ success: false, message: 'Please provide branch/faculty and name' });
+        }
+
+        if (hasFaculties) {
+            await sql.query`
+                UPDATE departments
+                SET branch_id = ${branchId}, faculty_id = ${facultyId}, name = ${name}
+                WHERE id = ${departmentId}
+            `;
+        } else {
+            await sql.query`
+                UPDATE departments
+                SET branch_id = ${branchId}, name = ${name}
+                WHERE id = ${departmentId}
+            `;
+        }
+
+        await writeAuditLog(req.user.id, 'update_department', 'department', departmentId, JSON.stringify({ branchId, facultyId, name }));
+        res.status(200).json({ success: true, message: 'Department updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const updateFaculty = async (req, res) => {
+    try {
+        const facultyId = Number(req.params.id);
+        const branchId = Number(req.body.branch_id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        if (!Number.isInteger(facultyId) || facultyId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid faculty id' });
+        }
+        if (!(await hasTable('faculties'))) {
+            return res.status(400).json({ success: false, message: 'Faculties table not available' });
+        }
+        if (!Number.isInteger(branchId) || branchId <= 0 || !name) {
+            return res.status(400).json({ success: false, message: 'Please provide branch_id and name' });
+        }
+
+        const result = await sql.query`
+            UPDATE faculties
+            SET branch_id = ${branchId}, name = ${name}
+            WHERE id = ${facultyId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Faculty not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'update_faculty', 'faculty', facultyId, JSON.stringify({ branchId, name }));
+        res.status(200).json({ success: true, message: 'Faculty updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const updateUniversity = async (req, res) => {
+    try {
+        const universityId = Number(req.params.id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : '';
+        const country = typeof req.body.country === 'string' ? req.body.country.trim() : '';
+        if (!Number.isInteger(universityId) || universityId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid university id' });
+        }
+        if (!name || !country) {
+            return res.status(400).json({ success: false, message: 'Please provide name and country' });
+        }
+
+        const result = await sql.query`
+            UPDATE universities
+            SET name = ${name}, country = ${country}
+            WHERE id = ${universityId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'University not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'update_university', 'university', universityId, JSON.stringify({ name, country }));
+        res.status(200).json({ success: true, message: 'University updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 const deleteUniversity = async (req, res) => {
     try {
         const universityId = Number(req.params.id);
@@ -1547,18 +1711,23 @@ const getStatistics = async (_req, res) => {
 module.exports = {
     getUniversities,
     addUniversity,
+    updateUniversity,
     deleteUniversity,
     getBranches,
     addBranch,
+    updateBranch,
     deleteBranch,
     getFaculties,
     addFaculty,
+    updateFaculty,
     deleteFaculty,
     getDepartments,
     addDepartment,
+    updateDepartment,
     deleteDepartment,
     getCourses,
     addCourse,
+    updateCourse,
     deleteCourse,
     getUsers,
     addUser,

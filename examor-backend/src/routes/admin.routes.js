@@ -5,18 +5,23 @@ const { allowRoles } = require('../middleware/roles');
 const {
     getUniversities,
     addUniversity,
+    updateUniversity,
     deleteUniversity,
     getBranches,
     addBranch,
+    updateBranch,
     deleteBranch,
     getFaculties,
     addFaculty,
+    updateFaculty,
     deleteFaculty,
     getDepartments,
     addDepartment,
+    updateDepartment,
     deleteDepartment,
     getCourses,
     addCourse,
+    updateCourse,
     deleteCourse,
     getUsers,
     addUser,
@@ -46,26 +51,31 @@ router.use(allowRoles('admin'));
 // Universities
 router.get('/universities',  getUniversities);
 router.post('/universities', addUniversity);
+router.patch('/universities/:id', updateUniversity);
 router.delete('/universities/:id', deleteUniversity);
 
 // Branches
 router.get('/branches',  getBranches);
 router.post('/branches', addBranch);
+router.patch('/branches/:id', updateBranch);
 router.delete('/branches/:id', deleteBranch);
 
 // Faculties
 router.get('/faculties', getFaculties);
 router.post('/faculties', addFaculty);
+router.patch('/faculties/:id', updateFaculty);
 router.delete('/faculties/:id', deleteFaculty);
 
 // Departments
 router.get('/departments',  getDepartments);
 router.post('/departments', addDepartment);
+router.patch('/departments/:id', updateDepartment);
 router.delete('/departments/:id', deleteDepartment);
 
 // Courses
 router.get('/courses',  getCourses);
 router.post('/courses', addCourse);
+router.patch('/courses/:id', updateCourse);
 router.delete('/courses/:id', deleteCourse);
 
 // Users
