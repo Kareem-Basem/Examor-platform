@@ -521,6 +521,7 @@ function ExamPage() {
   }, [attemptId, code, forceQuit, proctorStarted, sessionConflict, sessionKey, t]);
 
   const currentQuestion = questions[current];
+  const looksLatin = useCallback((value) => /[A-Za-z]/.test(String(value || "")), []);
   const answeredIds = useMemo(() => new Set(Object.entries(answers).filter(([, value]) => value !== "").map(([qid]) => String(qid))), [answers]);
   const markedIds = useMemo(() => new Set(Object.entries(markedQuestions).filter(([, flagged]) => Boolean(flagged)).map(([qid]) => String(qid))), [markedQuestions]);
   const answered = answeredIds.size;
@@ -887,20 +888,45 @@ function ExamPage() {
             </div>
           </div>
 
-          {currentQuestion && (
-            <div style={{ background: colors.cardBg, borderRadius: 14, padding: 22, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ color: colors.textMuted, fontSize: 12 }}>{t(`Question ${current + 1} of ${total}`, `${ar.question} ${current + 1} ${ar.of} ${total}`)}</span>
-                <span style={{ color: colors.accent, fontSize: 12, fontWeight: "bold" }}>{currentQuestion.type}</span>
-              </div>
-              <p style={{ fontSize: 16, fontWeight: "bold", color: colors.text, lineHeight: 1.7 }}>{currentQuestion.question_text}</p>
+            {currentQuestion && (
+              <div style={{ background: colors.cardBg, borderRadius: 14, padding: 22, border: `1px solid ${colors.border}`, boxShadow: colors.shadow }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ color: colors.textMuted, fontSize: 12 }}>{t(`Question ${current + 1} of ${total}`, `${ar.question} ${current + 1} ${ar.of} ${total}`)}</span>
+                  <span style={{ color: colors.accent, fontSize: 12, fontWeight: "bold" }}>{currentQuestion.type}</span>
+                </div>
+                <p
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: colors.text,
+                    lineHeight: 1.7,
+                    direction: isAr && looksLatin(currentQuestion.question_text) ? "ltr" : "rtl",
+                    textAlign: isAr && looksLatin(currentQuestion.question_text) ? "left" : "right",
+                    unicodeBidi: "plaintext",
+                  }}
+                >
+                  {currentQuestion.question_text}
+                </p>
 
-              {currentQuestion.type === "mcq" && currentQuestion.options.map((opt) => (
-                <label key={opt.option_id} style={{ display: "flex", gap: 12, padding: "12px 16px", borderRadius: 12, border: `1.5px solid ${answers[currentQuestion.question_id] === String(opt.option_id) ? colors.accent : colors.border}`, marginBottom: 8 }}>
-                  <input type="radio" checked={answers[currentQuestion.question_id] === String(opt.option_id)} onChange={() => setAnswers((prev) => ({ ...prev, [currentQuestion.question_id]: String(opt.option_id) }))} />
-                  <span style={{ color: colors.text }}>{opt.option_text}</span>
-                </label>
-              ))}
+                {currentQuestion.type === "mcq" && currentQuestion.options.map((opt) => (
+                  <label
+                    key={opt.option_id}
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      padding: "12px 16px",
+                      borderRadius: 12,
+                      border: `1.5px solid ${answers[currentQuestion.question_id] === String(opt.option_id) ? colors.accent : colors.border}`,
+                      marginBottom: 8,
+                      direction: isAr && looksLatin(opt.option_text) ? "ltr" : "rtl",
+                      textAlign: isAr && looksLatin(opt.option_text) ? "left" : "right",
+                      unicodeBidi: "plaintext",
+                    }}
+                  >
+                    <input type="radio" checked={answers[currentQuestion.question_id] === String(opt.option_id)} onChange={() => setAnswers((prev) => ({ ...prev, [currentQuestion.question_id]: String(opt.option_id) }))} />
+                    <span style={{ color: colors.text }}>{opt.option_text}</span>
+                  </label>
+                ))}
 
               {currentQuestion.type === "true_false" && (
                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
