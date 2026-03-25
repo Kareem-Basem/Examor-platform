@@ -852,10 +852,37 @@ function Footer({ openContact, navigate }) {
                     onMouseEnter={e=>{e.currentTarget.style.transform='translateY(-4px)';e.currentTarget.style.borderColor='rgba(201,168,130,.35)';e.currentTarget.style.boxShadow=isDark?'0 18px 34px rgba(0,0,0,.22)':'0 18px 34px rgba(74,46,26,.12)'}}
                     onMouseLeave={e=>{e.currentTarget.style.transform='none';e.currentTarget.style.borderColor=isDark?'rgba(255,255,255,.06)':'rgba(255,255,255,.08)';e.currentTarget.style.boxShadow='none'}}>
                     <div style={{ color: accentCol, fontSize:11, fontWeight:'bold', marginBottom:14, letterSpacing:1, textTransform:'uppercase' }}>{ar?'تواصل':'Contact'}</div>
-                    {[{icon:'✉',text:'karemalwy1@gmail.com', href:'mailto:karemalwy1@gmail.com'},{icon:'✦',text:'Kareem Basem Fathi', href:null}].map((item,i) => (
+                    {[
+                        {
+                            icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                                    <path d="M3 7l9 6 9-6" />
+                                </svg>
+                            ),
+                            text: 'karemalwy1@gmail.com',
+                            href: 'mailto:karemalwy1@gmail.com'
+                        },
+                        {
+                            icon: (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M16 18l6-6-6-6" />
+                                    <path d="M8 6l-6 6 6 6" />
+                                </svg>
+                            ),
+                            text: 'Kareem Basem Fathi',
+                            href: 'https://kareem-basem-portfolio.vercel.app/'
+                        }
+                    ].map((item,i) => (
                         item.href
-                            ? <a key={i} href={item.href} style={{ color: textCol, fontSize:isMobile ? 11 : 12, fontWeight:500, marginBottom:9, cursor:'pointer', transition:'color .25s, transform .25s', textDecoration:'none', display:'flex', alignItems:'center', gap:6 }} onMouseEnter={e=>{e.currentTarget.style.color=textHover;e.currentTarget.style.transform='translateX(-2px)'}} onMouseLeave={e=>{e.currentTarget.style.color=textCol;e.currentTarget.style.transform='none'}}>{item.icon} {item.text}</a>
-                            : <div key={i} style={{ color: textCol, fontSize:isMobile ? 11 : 12, fontWeight:500, marginBottom:9, display:'flex', alignItems:'center', gap:6 }}>{item.icon} {item.text}</div>
+                            ? <a key={i} href={item.href} target="_blank" rel="noreferrer" style={{ color: textCol, fontSize:isMobile ? 11 : 12, fontWeight:500, marginBottom:9, cursor:'pointer', transition:'color .25s, transform .25s', textDecoration:'none', display:'flex', alignItems:'center', gap:6 }} onMouseEnter={e=>{e.currentTarget.style.color=textHover;e.currentTarget.style.transform='translateX(-2px)'}} onMouseLeave={e=>{e.currentTarget.style.color=textCol;e.currentTarget.style.transform='none'}}>
+                                <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', color:textCol }}>{item.icon}</span>
+                                {item.text}
+                            </a>
+                            : <div key={i} style={{ color: textCol, fontSize:isMobile ? 11 : 12, fontWeight:500, marginBottom:9, display:'flex', alignItems:'center', gap:6 }}>
+                                <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', color:textCol }}>{item.icon}</span>
+                                {item.text}
+                            </div>
                     ))}
                     <button onClick={openContact} style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:14, padding:isMobile ? '10px 16px' : '10px 20px', background:'#C9A882', color:'#4A2E1A', border:'none', borderRadius:10, fontSize:isMobile ? 11 : 12, fontWeight:'bold', cursor:'pointer', transition:'all .25s', width:isMobile ? '100%' : 'auto' }}
                         onMouseEnter={e=>{e.currentTarget.style.background='#E8DDD0';e.currentTarget.style.transform='translateY(-2px)'}}
