@@ -541,15 +541,25 @@ const deleteUser = async (req, res) => {
                 await transaction.begin();
                 const tx = new sql.Request(transaction);
 
-                if (await hasColumn('users', 'academic_verified_by_admin_id')) {
-                    await tx.query`
-                        UPDATE users
-                        SET academic_verified_by_admin_id = NULL,
-                            academic_verified_at = NULL,
-                            academic_verified = FALSE,
-                            academic_email_confirmed = FALSE
-                        WHERE academic_verified_by_admin_id = ${userId}
-                    `;
+                {
+                    const hasVerifiedBy = await hasColumn('users', 'academic_verified_by_admin_id');
+                    const hasVerifiedAt = await hasColumn('users', 'academic_verified_at');
+                    const hasVerified = await hasColumn('users', 'academic_verified');
+                    const hasEmailConfirmed = await hasColumn('users', 'academic_email_confirmed');
+                    if (hasVerifiedBy) {
+                        const updates = [];
+                        if (hasVerifiedBy) updates.push('academic_verified_by_admin_id = NULL');
+                        if (hasVerifiedAt) updates.push('academic_verified_at = NULL');
+                        if (hasVerified) updates.push('academic_verified = FALSE');
+                        if (hasEmailConfirmed) updates.push('academic_email_confirmed = FALSE');
+                        if (updates.length > 0) {
+                            await tx.query(`
+                                UPDATE users
+                                SET ${updates.join(', ')}
+                                WHERE academic_verified_by_admin_id = $1
+                            `, userId);
+                        }
+                    }
                 }
 
                 if (await hasTable('admin_audit_logs')) {
@@ -636,6 +646,7 @@ const deleteUser = async (req, res) => {
         await writeAuditLog(req.user.id, 'delete_user', 'user', userId, null);
         res.status(200).json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
+        console.error('Force delete user failed:', error);
         if (transaction) {
             try {
                 await transaction.rollback();
