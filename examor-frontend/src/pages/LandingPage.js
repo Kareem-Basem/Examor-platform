@@ -949,12 +949,12 @@ function ContactModal({ open, onClose }) {
                 {!success ? (
                     <>
                         <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 1fr', gap:10, padding:isMobile ? '16px 18px 0' : '16px 30px 0' }}>
-                            {[{icon:'✉',label:ar?'البريد':'Email',val:'karemalwy1@gmail.com',bg:'rgba(139,107,74,.1)',c:'#8B6B4A'},{icon:'✦',label:ar?'المطوّر':'Developer',val:'Kareem Basem Fathi',bg:'rgba(74,128,80,.1)',c:'#4A8050'}].map((c,i) => (
-                                <div key={i} style={{ background: cardBg, border:`1px solid ${modalBdr}`, borderRadius:12, padding:isMobile ? '11px 12px' : '12px 14px', display:'flex', alignItems:'center', gap:10 }}>
-                                    <div style={{ width:34, height:34, borderRadius:9, background: c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>{c.icon}</div>
-                                    <div><div style={{ fontSize:10, color: subCol, marginBottom:3 }}>{c.label}</div><div style={{ fontSize:isNarrowMobile ? 10 : 11, color: c.c, fontWeight:500, wordBreak:'break-word' }}>{c.val}</div></div>
-                                </div>
-                            ))}
+                            {[{icon:'✉',label:ar?'البريد':'Email',val:'karemalwy1@gmail.com',bg:'rgba(139,107,74,.1)',c:'#8B6B4A'},{icon:(<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 18l6-6-6-6" /><path d="M8 6l-6 6 6 6" /></svg>),label:ar?'المطوّر':'Developer',val:'Kareem Basem Fathi',bg:'rgba(74,128,80,.1)',c:'#4A8050'}].map((c,i) => (
+                                  <div key={i} style={{ background: cardBg, border:`1px solid ${modalBdr}`, borderRadius:12, padding:isMobile ? '11px 12px' : '12px 14px', display:'flex', alignItems:'center', gap:10 }}>
+                                      <div style={{ width:34, height:34, borderRadius:9, background: c.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0, color: c.c }}>{c.icon}</div>
+                                      <div><div style={{ fontSize:10, color: subCol, marginBottom:3 }}>{c.label}</div><div style={{ fontSize:isNarrowMobile ? 10 : 11, color: c.c, fontWeight:500, wordBreak:'break-word' }}>{c.val}</div></div>
+                                  </div>
+                              ))}
                         </div>
                         <div style={{ padding:isMobile ? '18px 18px 20px' : '18px 30px 30px', display:'flex', flexDirection:'column', gap:13 }}>
                             <div style={{ display:'grid', gridTemplateColumns:isMobile ? '1fr' : '1fr 1fr', gap:10 }}>
