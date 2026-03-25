@@ -334,89 +334,14 @@ const ensureGlobalDemoExamByCode = async (requestedCode, userName) => {
     const normalizedCode = String(requestedCode || '').trim().toUpperCase();
     if (!normalizedCode) return null;
 
-    const existingByCode = await sql.query`
-        SELECT id, exam_code
-        FROM exams
-        WHERE exam_code = ${normalizedCode}
-        ORDER BY id DESC
-        LIMIT 1
-    `;
-    if (existingByCode.recordset[0]) {
-        return existingByCode.recordset[0];
-    }
-
-    const existingDemo = await sql.query`
-        SELECT id, exam_code
-        FROM exams
-        WHERE COALESCE(is_demo_exam, FALSE) = TRUE
-          AND LOWER(COALESCE(title, '')) LIKE 'demo exam (student onboarding)%'
-        ORDER BY id DESC
-        LIMIT 1
-    `;
-    if (existingDemo.recordset[0]) {
-        const found = existingDemo.recordset[0];
-        try {
-            await sql.query`
-                UPDATE exams
-                SET exam_code = ${normalizedCode}
-                WHERE id = ${found.id}
-            `;
-            return { ...found, exam_code: normalizedCode };
-        } catch (_) {
-            return found;
-        }
-    }
-
-    const ownerId = await getAdminOwnerId();
-    if (!ownerId) return null;
-
     const examColumns = await getTableColumns('exams');
     if (!examColumns.has('is_demo_exam')) return null;
 
-    const demoTitle = 'Demo Exam (Student Onboarding)';
-    const demoDuration = 10;
-    const demoTotalMarks = 10;
-    const demoMaxAttempts = 3;
-    const demoProctoringEnabled = true;
-    const demoScreenProtection = true;
-
-    const cols = [];
-    const vals = [];
-    const push = (col, value) => {
-        cols.push(col);
-        vals.push(value);
-    };
-
-    if (examColumns.has('title')) push('title', demoTitle);
-    if (examColumns.has('created_by')) push('created_by', ownerId);
-    if (examColumns.has('duration')) push('duration', demoDuration);
-    if (examColumns.has('total_marks')) push('total_marks', demoTotalMarks);
-    if (examColumns.has('exam_code')) push('exam_code', normalizedCode);
-    if (examColumns.has('access_mode')) push('access_mode', 'link');
-    if (examColumns.has('post_end_visibility_mode')) push('post_end_visibility_mode', 'archive');
-    if (examColumns.has('post_end_grace_minutes')) push('post_end_grace_minutes', 0);
-    if (examColumns.has('max_attempts_per_student')) push('max_attempts_per_student', demoMaxAttempts);
-    if (examColumns.has('proctoring_enabled')) push('proctoring_enabled', demoProctoringEnabled);
-    if (examColumns.has('screen_capture_protection')) push('screen_capture_protection', demoScreenProtection);
-    if (examColumns.has('allow_custom_exam_code')) push('allow_custom_exam_code', false);
-    if (examColumns.has('is_demo_exam')) push('is_demo_exam', true);
-
-    if (cols.length === 0) return null;
-
-    const params = vals.map((_, idx) => `$${idx + 1}`).join(', ');
-    const insertResult = await sql.query(
-        `INSERT INTO exams (${cols.join(', ')}) VALUES (${params}) RETURNING id, exam_code`,
-        ...vals
-    );
-    const demoExam = insertResult.recordset[0];
-    if (!demoExam?.id) return null;
-
     const questionColumns = await getTableColumns('questions');
     const hasQuestionOrder = questionColumns.has('question_order');
-    const safeName = typeof userName === 'string' && userName.trim() ? userName.trim() : 'User';
     const demoQuestions = [
         {
-            text: `Welcome ${safeName}! Which action starts an exam?`,
+            text: 'Welcome! Which action starts an exam?',
             type: 'MCQ',
             marks: 2,
             answer: null,
@@ -459,34 +384,180 @@ const ensureGlobalDemoExamByCode = async (requestedCode, userName) => {
             options: []
         }
     ];
+    const syncDemoQuestions = async (examId) => {
+        if (!examId) return;
 
-    for (let i = 0; i < demoQuestions.length; i += 1) {
-        const question = demoQuestions[i];
-        const questionInsert = hasQuestionOrder
-            ? `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               RETURNING id`
-            : `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
-               VALUES ($1, $2, $3, $4, $5)
-               RETURNING id`;
+        let attemptCount = 0;
+        try {
+            const attemptsResult = await sql.query`
+                SELECT COUNT(*)::INT AS total
+                FROM exam_attempts
+                WHERE exam_id = ${examId}
+            `;
+            attemptCount = Number(attemptsResult.recordset[0]?.total || 0);
+        } catch (_) {
+            attemptCount = 0;
+        }
 
-        const questionParams = hasQuestionOrder
-            ? [demoExam.id, question.text, question.type, question.marks, question.answer, i + 1]
-            : [demoExam.id, question.text, question.type, question.marks, question.answer];
+        let existingQuestions = [];
+        try {
+            const existingResult = await sql.query`
+                SELECT id, question_text
+                FROM questions
+                WHERE exam_id = ${examId}
+                ORDER BY id
+            `;
+            existingQuestions = existingResult.recordset || [];
+        } catch (_) {
+            existingQuestions = [];
+        }
 
-        const questionResult = await sql.query(questionInsert, ...questionParams);
-        const questionId = questionResult.recordset[0]?.id;
-        if (!questionId || !Array.isArray(question.options) || question.options.length === 0) continue;
+        const canonicalTexts = demoQuestions.map((question) => question.text);
+        const existingTexts = existingQuestions.map((question) => question.question_text);
+        const missingCanonical = canonicalTexts.some((text) => !existingTexts.includes(text));
+        const countMismatch = existingTexts.length !== canonicalTexts.length;
+        const shouldReseed = attemptCount === 0 && (existingTexts.length === 0 || missingCanonical || countMismatch);
 
-        for (const option of question.options) {
-            await sql.query(
-                'INSERT INTO options (question_id, option_text, is_correct) VALUES ($1, $2, $3)',
-                questionId,
-                option.text,
-                option.isCorrect ? 1 : 0
-            );
+        if (shouldReseed) {
+            await sql.query`
+                DELETE FROM options
+                WHERE question_id IN (
+                    SELECT id
+                    FROM questions
+                    WHERE exam_id = ${examId}
+                )
+            `;
+            await sql.query`
+                DELETE FROM questions
+                WHERE exam_id = ${examId}
+            `;
+
+            for (let i = 0; i < demoQuestions.length; i += 1) {
+                const question = demoQuestions[i];
+                const questionInsert = hasQuestionOrder
+                    ? `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer, question_order)
+                       VALUES ($1, $2, $3, $4, $5, $6)
+                       RETURNING id`
+                    : `INSERT INTO questions (exam_id, question_text, question_type, marks, correct_answer)
+                       VALUES ($1, $2, $3, $4, $5)
+                       RETURNING id`;
+
+                const questionParams = hasQuestionOrder
+                    ? [examId, question.text, question.type, question.marks, question.answer, i + 1]
+                    : [examId, question.text, question.type, question.marks, question.answer];
+
+                const questionResult = await sql.query(questionInsert, ...questionParams);
+                const questionId = questionResult.recordset[0]?.id;
+                if (!questionId || !Array.isArray(question.options) || question.options.length === 0) continue;
+
+                for (const option of question.options) {
+                    await sql.query(
+                        'INSERT INTO options (question_id, option_text, is_correct) VALUES ($1, $2, $3)',
+                        questionId,
+                        option.text,
+                        option.isCorrect ? 1 : 0
+                    );
+                }
+            }
+        } else {
+            try {
+                await sql.query`
+                    UPDATE questions
+                    SET question_text = ${demoQuestions[0].text}
+                    WHERE exam_id = ${examId}
+                      AND question_text ILIKE 'Welcome %! Which action starts an exam?'
+                `;
+                await sql.query`
+                    UPDATE questions
+                    SET question_text = ${demoQuestions[0].text}
+                    WHERE exam_id = ${examId}
+                      AND question_text ILIKE '%maxen nashaat%'
+                `;
+            } catch (_) {
+                // Ignore normalization errors.
+            }
+        }
+    };
+
+    const existingByCode = await sql.query`
+        SELECT id, exam_code
+        FROM exams
+        WHERE exam_code = ${normalizedCode}
+        ORDER BY id DESC
+        LIMIT 1
+    `;
+    if (existingByCode.recordset[0]) {
+        const found = existingByCode.recordset[0];
+        await syncDemoQuestions(found.id);
+        return found;
+    }
+
+    const existingDemo = await sql.query`
+        SELECT id, exam_code
+        FROM exams
+        WHERE COALESCE(is_demo_exam, FALSE) = TRUE
+          AND LOWER(COALESCE(title, '')) LIKE 'demo exam (student onboarding)%'
+        ORDER BY id DESC
+        LIMIT 1
+    `;
+    if (existingDemo.recordset[0]) {
+        const found = existingDemo.recordset[0];
+        try {
+            await sql.query`
+                UPDATE exams
+                SET exam_code = ${normalizedCode}
+                WHERE id = ${found.id}
+            `;
+            await syncDemoQuestions(found.id);
+            return { ...found, exam_code: normalizedCode };
+        } catch (_) {
+            await syncDemoQuestions(found.id);
+            return found;
         }
     }
+
+    const ownerId = await getAdminOwnerId();
+    if (!ownerId) return null;
+
+    const demoTitle = 'Demo Exam (Student Onboarding)';
+    const demoDuration = 10;
+    const demoTotalMarks = 10;
+    const demoMaxAttempts = 3;
+    const demoProctoringEnabled = true;
+    const demoScreenProtection = true;
+
+    const cols = [];
+    const vals = [];
+    const push = (col, value) => {
+        cols.push(col);
+        vals.push(value);
+    };
+
+    if (examColumns.has('title')) push('title', demoTitle);
+    if (examColumns.has('created_by')) push('created_by', ownerId);
+    if (examColumns.has('duration')) push('duration', demoDuration);
+    if (examColumns.has('total_marks')) push('total_marks', demoTotalMarks);
+    if (examColumns.has('exam_code')) push('exam_code', normalizedCode);
+    if (examColumns.has('access_mode')) push('access_mode', 'link');
+    if (examColumns.has('post_end_visibility_mode')) push('post_end_visibility_mode', 'archive');
+    if (examColumns.has('post_end_grace_minutes')) push('post_end_grace_minutes', 0);
+    if (examColumns.has('max_attempts_per_student')) push('max_attempts_per_student', demoMaxAttempts);
+    if (examColumns.has('proctoring_enabled')) push('proctoring_enabled', demoProctoringEnabled);
+    if (examColumns.has('screen_capture_protection')) push('screen_capture_protection', demoScreenProtection);
+    if (examColumns.has('allow_custom_exam_code')) push('allow_custom_exam_code', false);
+    if (examColumns.has('is_demo_exam')) push('is_demo_exam', true);
+
+    if (cols.length === 0) return null;
+
+    const params = vals.map((_, idx) => `$${idx + 1}`).join(', ');
+    const insertResult = await sql.query(
+        `INSERT INTO exams (${cols.join(', ')}) VALUES (${params}) RETURNING id, exam_code`,
+        ...vals
+    );
+    const demoExam = insertResult.recordset[0];
+    if (!demoExam?.id) return null;
+
+    await syncDemoQuestions(demoExam.id);
 
     return demoExam;
 };
@@ -661,6 +732,10 @@ const getExamMeta = async (code, studentId) => {
               AND (
                   (
                       COALESCE(e.is_demo_exam, FALSE) = TRUE
+                      AND (
+                          e.exam_code = 'DEMO-EXAM'
+                          OR LOWER(COALESCE(e.title, '')) LIKE 'demo exam (student onboarding)%'
+                      )
                   )
                   OR (
                       COALESCE(e.is_demo_exam, FALSE) = FALSE
@@ -1000,6 +1075,21 @@ const getAvailableExams = async (req, res) => {
               AND (
                   (
                       COALESCE(e.is_demo_exam, FALSE) = TRUE
+                      AND (
+                          e.exam_code = 'DEMO-EXAM'
+                          OR LOWER(COALESCE(e.title, '')) LIKE 'demo exam (student onboarding)%'
+                      )
+                      AND e.id = (
+                          SELECT id
+                          FROM exams
+                          WHERE COALESCE(is_demo_exam, FALSE) = TRUE
+                            AND (
+                                exam_code = 'DEMO-EXAM'
+                                OR LOWER(COALESCE(title, '')) LIKE 'demo exam (student onboarding)%'
+                            )
+                          ORDER BY id DESC
+                          LIMIT 1
+                      )
                   )
                   OR (
                       COALESCE(e.is_demo_exam, FALSE) = FALSE

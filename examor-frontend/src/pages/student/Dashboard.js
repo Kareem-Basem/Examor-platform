@@ -98,7 +98,15 @@ function StudentDashboard() {
     try {
       const res = await API.get('/student/exams');
       const data = Array.isArray(res.data.data) ? res.data.data : [];
-      setExams(data);
+      const demoCandidates = data.filter((exam) => {
+        const isDemo = Boolean(exam.is_demo_exam);
+        const title = String(exam.title || '').toLowerCase();
+        return isDemo && (exam.exam_code === 'DEMO-EXAM' || title.startsWith('demo exam (student onboarding)'));
+      });
+      const latestDemo = demoCandidates.sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0];
+      const nonDemo = data.filter((exam) => !Boolean(exam.is_demo_exam));
+      const next = latestDemo ? [latestDemo, ...nonDemo] : nonDemo;
+      setExams(next);
     } catch (err) {
       console.error(err);
       setLoadError(text.openError);
