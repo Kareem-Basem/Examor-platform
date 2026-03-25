@@ -496,8 +496,10 @@ const deleteCourse = async (req, res) => {
 };
 
 const deleteUser = async (req, res) => {
+    let transaction;
     try {
         const userId = Number(req.params.id);
+        const forceDelete = String(req.query.force || '').toLowerCase() === 'true';
         if (!Number.isInteger(userId) || userId <= 0) {
             return res.status(400).json({ success: false, message: 'Invalid user id' });
         }
@@ -532,7 +534,50 @@ const deleteUser = async (req, res) => {
         if ((await hasTable('exam_attempts')) && (await hasColumn('exam_attempts', 'student_id'))) {
             const attemptCount = await countBy('exam_attempts', 'student_id', userId);
             if (attemptCount > 0) {
-                return res.status(409).json({ success: false, message: 'Cannot delete user while attempts exist' });
+                if (!forceDelete) {
+                    return res.status(409).json({ success: false, message: 'Cannot delete user while attempts exist' });
+                }
+                transaction = new sql.Transaction();
+                await transaction.begin();
+                const tx = new sql.Request(transaction);
+
+                if (await hasTable('proctoring_violations')) {
+                    await tx.query`
+                        DELETE FROM proctoring_violations
+                        WHERE attempt_id IN (
+                            SELECT id
+                            FROM exam_attempts
+                            WHERE student_id = ${userId}
+                        )
+                    `;
+                }
+                if (await hasTable('answers')) {
+                    await tx.query`
+                        DELETE FROM answers
+                        WHERE attempt_id IN (
+                            SELECT id
+                            FROM exam_attempts
+                            WHERE student_id = ${userId}
+                        )
+                    `;
+                }
+                await tx.query`
+                    DELETE FROM exam_attempts
+                    WHERE student_id = ${userId}
+                `;
+
+                const deleteResult = await tx.query`
+                    DELETE FROM users
+                    WHERE id = ${userId}
+                `;
+                if ((deleteResult.rowsAffected?.[0] || 0) === 0) {
+                    await transaction.rollback();
+                    return res.status(404).json({ success: false, message: 'User not found' });
+                }
+
+                await transaction.commit();
+                await writeAuditLog(req.user.id, 'force_delete_user', 'user', userId, JSON.stringify({ removedAttempts: attemptCount }));
+                return res.status(200).json({ success: true, message: 'User deleted successfully' });
             }
         }
 
@@ -547,6 +592,13 @@ const deleteUser = async (req, res) => {
         await writeAuditLog(req.user.id, 'delete_user', 'user', userId, null);
         res.status(200).json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
+        if (transaction) {
+            try {
+                await transaction.rollback();
+            } catch (rollbackError) {
+                // ignore rollback errors
+            }
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };

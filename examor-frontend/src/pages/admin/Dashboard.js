@@ -55,6 +55,7 @@ function AdminDashboard() {
     actions: isAr ? 'إجراءات' : 'Actions',
     delete: isAr ? 'حذف' : 'Delete',
     deleteConfirm: isAr ? 'هل تريد حذف' : 'Are you sure you want to delete',
+    forceDeleteUserConfirm: isAr ? 'هذا المستخدم لديه محاولات. هل تريد حذف المستخدم وكل محاولاته؟' : 'This user has attempts. Delete the user and all attempts?',
     accountType: isAr ? 'نوع الحساب' : 'Account Type',
     accountState: isAr ? 'حالة الحساب' : 'Account State',
     university: isAr ? 'الجامعة' : 'University',
@@ -551,11 +552,27 @@ function AdminDashboard() {
     refresh: fetchCourses
   });
 
-  const handleDeleteUser = (item) => handleDeleteResource({
-    endpoint: `/admin/users/${item.id}`,
-    label: item.email || item.name || t.users,
-    refresh: fetchUsers
-  });
+  const handleDeleteUser = async (item) => {
+    const label = item.email || item.name || t.users;
+    const ok = confirmDelete(label);
+    if (!ok) return;
+    try {
+      await API.delete(`/admin/users/${item.id}`);
+      await fetchUsers();
+      showToast(t.successDeleted, 'success');
+    } catch (err) {
+      const message = String(err?.response?.data?.message || '');
+      if (err?.response?.status === 409 && message.toLowerCase().includes('attempt')) {
+        const forceOk = window.confirm(`${t.forceDeleteUserConfirm}\n${label}`);
+        if (!forceOk) return;
+        await API.delete(`/admin/users/${item.id}?force=true`);
+        await fetchUsers();
+        showToast(t.successDeleted, 'success');
+        return;
+      }
+      throw err;
+    }
+  };
 
   const handleDeleteExam = (item) => handleDeleteResource({
     endpoint: `/admin/exams/${item.id}`,
