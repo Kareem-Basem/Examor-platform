@@ -394,6 +394,8 @@ function AdminDashboard() {
   const beginUserEdit = (account) => {
     setEditingUserId(account.id);
     setEditingUserDraft({
+      name: account.name || '',
+      email: account.email || '',
       role: account.role,
       university_id: account.university_id ? String(account.university_id) : '',
       branch_id: account.branch_id ? String(account.branch_id) : '',
@@ -415,6 +417,8 @@ function AdminDashboard() {
   const handleUpdateUserDraft = async () => {
     if (!editingUserId || !editingUserDraft) return;
     await API.patch(`/admin/users/${editingUserId}`, {
+      name: editingUserDraft.name || '',
+      email: editingUserDraft.email || '',
       role: editingUserDraft.role,
       university_id: editingUserDraft.university_id ? Number(editingUserDraft.university_id) : null,
       department_id: editingUserDraft.department_id ? Number(editingUserDraft.department_id) : null,
@@ -843,6 +847,8 @@ function AdminDashboard() {
     return Boolean(item?.department_id);
   };
   const editDraft = editingUserDraft || {
+    name: '',
+    email: '',
     role: 'student',
     university_id: '',
     branch_id: '',
@@ -1205,6 +1211,23 @@ function AdminDashboard() {
           <div style={styles.modalCard} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalTitle}>{t.editUserTitle}</div>
             <div style={{ display: 'grid', gridTemplateColumns: isTablet ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, color: colors.textMuted, fontSize: 12 }}>{t.name}</label>
+                <input
+                  value={editDraft.name}
+                  onChange={(e) => setEditingUserDraft((prev) => ({ ...(prev || {}), name: e.target.value }))}
+                  style={styles.input}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: 6, color: colors.textMuted, fontSize: 12 }}>{t.email}</label>
+                <input
+                  type="email"
+                  value={editDraft.email}
+                  onChange={(e) => setEditingUserDraft((prev) => ({ ...(prev || {}), email: e.target.value }))}
+                  style={styles.input}
+                />
+              </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 6, color: colors.textMuted, fontSize: 12 }}>{t.role}</label>
                 <select

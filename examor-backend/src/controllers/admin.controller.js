@@ -1176,6 +1176,8 @@ const backfillDemoExamsForUsers = async (req, res) => {
 const updateUser = async (req, res) => {
     try {
         const userId = Number(req.params.id);
+        const name = typeof req.body.name === 'string' ? req.body.name.trim() : null;
+        const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : null;
         const role = normalizeRole(req.body.role);
         const universityId = req.body.university_id ? Number(req.body.university_id) : null;
         const departmentId = req.body.department_id ? Number(req.body.department_id) : null;
@@ -1188,10 +1190,22 @@ const updateUser = async (req, res) => {
         if (!Number.isInteger(userId) || userId <= 0 || !role) {
             return res.status(400).json({ success: false, message: 'Invalid user update payload' });
         }
+        if (name !== null && !name) {
+            return res.status(400).json({ success: false, message: 'Name is required' });
+        }
+        if (email !== null && !email) {
+            return res.status(400).json({ success: false, message: 'Email is required' });
+        }
 
         const existing = await sql.query`SELECT id FROM users WHERE id = ${userId}`;
         if (existing.recordset.length === 0) {
             return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        if (email) {
+            const emailCheck = await sql.query`SELECT id FROM users WHERE email = ${email} AND id <> ${userId}`;
+            if (emailCheck.recordset.length > 0) {
+                return res.status(400).json({ success: false, message: 'Email already exists' });
+            }
         }
         if (departmentId && !departmentHierarchy) {
             return res.status(404).json({ success: false, message: 'Department not found' });
@@ -1211,16 +1225,21 @@ const updateUser = async (req, res) => {
             });
         }
 
+        const nextName = name !== null ? name : null;
+        const nextEmail = email !== null ? email : null;
+
         await sql.query`
             UPDATE users
-            SET role = ${role},
+            SET name = COALESCE(${nextName}, name),
+                email = COALESCE(${nextEmail}, email),
+                role = ${role},
                 university_id = ${universityId},
                 department_id = ${departmentId},
                 profile_mode = ${derivedProfileMode}
             WHERE id = ${userId}
         `;
 
-        await writeAuditLog(req.user.id, 'update_user', 'user', userId, JSON.stringify({ role, universityId, departmentId, derivedProfileMode }));
+        await writeAuditLog(req.user.id, 'update_user', 'user', userId, JSON.stringify({ name, email, role, universityId, departmentId, derivedProfileMode }));
 
         res.status(200).json({ success: true, message: 'User updated successfully' });
     } catch (error) {
