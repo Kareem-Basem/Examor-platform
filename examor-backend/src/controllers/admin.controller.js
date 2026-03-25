@@ -75,6 +75,24 @@ const writeAuditLog = async (adminId, actionType, targetType, targetId, details)
     `;
 };
 
+const countBy = async (tableName, columnName, value) => {
+    const result = await sql.query(`SELECT COUNT(*)::INT AS total FROM ${tableName} WHERE ${columnName} = $1`, value);
+    return Number(result.recordset[0]?.total || 0);
+};
+
+const getExamAttemptStats = async (examId) => {
+    if (!Number.isInteger(examId) || examId <= 0) return null;
+    if (!(await hasTable('exam_attempts'))) return { total_attempts: 0, open_attempts: 0 };
+    const result = await sql.query`
+        SELECT
+            COUNT(*)::INT AS total_attempts,
+            SUM(CASE WHEN submit_time IS NULL THEN 1 ELSE 0 END)::INT AS open_attempts
+        FROM exam_attempts
+        WHERE exam_id = ${examId}
+    `;
+    return result.recordset[0] || { total_attempts: 0, open_attempts: 0 };
+};
+
 const getUniversities = async (_req, res) => {
     try {
         const result = await sql.query`
@@ -290,6 +308,332 @@ const addCourse = async (req, res) => {
 
         res.status(201).json({ success: true, message: 'Course added successfully' });
     } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteUniversity = async (req, res) => {
+    try {
+        const universityId = Number(req.params.id);
+        if (!Number.isInteger(universityId) || universityId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid university id' });
+        }
+
+        if ((await hasTable('branches')) && (await hasColumn('branches', 'university_id'))) {
+            const branchCount = await countBy('branches', 'university_id', universityId);
+            if (branchCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete university while branches exist' });
+            }
+        }
+
+        if ((await hasTable('users')) && (await hasColumn('users', 'university_id'))) {
+            const userCount = await countBy('users', 'university_id', universityId);
+            if (userCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete university while users are linked' });
+            }
+        }
+
+        const result = await sql.query`
+            DELETE FROM universities
+            WHERE id = ${universityId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'University not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'delete_university', 'university', universityId, null);
+        res.status(200).json({ success: true, message: 'University deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteBranch = async (req, res) => {
+    try {
+        const branchId = Number(req.params.id);
+        if (!Number.isInteger(branchId) || branchId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid branch id' });
+        }
+
+        if ((await hasTable('departments')) && (await hasColumn('departments', 'branch_id'))) {
+            const departmentCount = await countBy('departments', 'branch_id', branchId);
+            if (departmentCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete branch while departments exist' });
+            }
+        }
+
+        if ((await hasTable('faculties')) && (await hasColumn('faculties', 'branch_id'))) {
+            const facultyCount = await countBy('faculties', 'branch_id', branchId);
+            if (facultyCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete branch while faculties exist' });
+            }
+        }
+
+        if ((await hasTable('users')) && (await hasColumn('users', 'branch_id'))) {
+            const userCount = await countBy('users', 'branch_id', branchId);
+            if (userCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete branch while users are linked' });
+            }
+        }
+
+        const result = await sql.query`
+            DELETE FROM branches
+            WHERE id = ${branchId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Branch not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'delete_branch', 'branch', branchId, null);
+        res.status(200).json({ success: true, message: 'Branch deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteFaculty = async (req, res) => {
+    try {
+        const facultyId = Number(req.params.id);
+        if (!Number.isInteger(facultyId) || facultyId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid faculty id' });
+        }
+        if (!(await hasTable('faculties'))) {
+            return res.status(400).json({ success: false, message: 'Faculties table not available' });
+        }
+
+        if ((await hasTable('departments')) && (await hasColumn('departments', 'faculty_id'))) {
+            const departmentCount = await countBy('departments', 'faculty_id', facultyId);
+            if (departmentCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete faculty while departments exist' });
+            }
+        }
+
+        if ((await hasTable('users')) && (await hasColumn('users', 'faculty_id'))) {
+            const userCount = await countBy('users', 'faculty_id', facultyId);
+            if (userCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete faculty while users are linked' });
+            }
+        }
+
+        const result = await sql.query`
+            DELETE FROM faculties
+            WHERE id = ${facultyId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Faculty not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'delete_faculty', 'faculty', facultyId, null);
+        res.status(200).json({ success: true, message: 'Faculty deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteDepartment = async (req, res) => {
+    try {
+        const departmentId = Number(req.params.id);
+        if (!Number.isInteger(departmentId) || departmentId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid department id' });
+        }
+
+        if ((await hasTable('courses')) && (await hasColumn('courses', 'department_id'))) {
+            const courseCount = await countBy('courses', 'department_id', departmentId);
+            if (courseCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete department while courses exist' });
+            }
+        }
+
+        if ((await hasTable('users')) && (await hasColumn('users', 'department_id'))) {
+            const userCount = await countBy('users', 'department_id', departmentId);
+            if (userCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete department while users are linked' });
+            }
+        }
+
+        const result = await sql.query`
+            DELETE FROM departments
+            WHERE id = ${departmentId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Department not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'delete_department', 'department', departmentId, null);
+        res.status(200).json({ success: true, message: 'Department deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteCourse = async (req, res) => {
+    try {
+        const courseId = Number(req.params.id);
+        if (!Number.isInteger(courseId) || courseId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid course id' });
+        }
+
+        if ((await hasTable('exams')) && (await hasColumn('exams', 'course_id'))) {
+            const examCount = await countBy('exams', 'course_id', courseId);
+            if (examCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete course while exams exist' });
+            }
+        }
+
+        const result = await sql.query`
+            DELETE FROM courses
+            WHERE id = ${courseId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'Course not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'delete_course', 'course', courseId, null);
+        res.status(200).json({ success: true, message: 'Course deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteUser = async (req, res) => {
+    try {
+        const userId = Number(req.params.id);
+        if (!Number.isInteger(userId) || userId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid user id' });
+        }
+        if (req.user.id === userId) {
+            return res.status(409).json({ success: false, message: 'You cannot delete your own account' });
+        }
+
+        const userResult = await sql.query`
+            SELECT id, role
+            FROM users
+            WHERE id = ${userId}
+        `;
+        const user = userResult.recordset[0];
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        if (user.role === 'admin') {
+            const adminCount = await countBy('users', 'role', 'admin');
+            if (adminCount <= 1) {
+                return res.status(409).json({ success: false, message: 'Cannot delete the last admin account' });
+            }
+        }
+
+        if ((await hasTable('exams')) && (await hasColumn('exams', 'created_by'))) {
+            const createdExamCount = await countBy('exams', 'created_by', userId);
+            if (createdExamCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete user while exams exist' });
+            }
+        }
+
+        if ((await hasTable('exam_attempts')) && (await hasColumn('exam_attempts', 'student_id'))) {
+            const attemptCount = await countBy('exam_attempts', 'student_id', userId);
+            if (attemptCount > 0) {
+                return res.status(409).json({ success: false, message: 'Cannot delete user while attempts exist' });
+            }
+        }
+
+        const result = await sql.query`
+            DELETE FROM users
+            WHERE id = ${userId}
+        `;
+        if ((result.rowsAffected?.[0] || 0) === 0) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        await writeAuditLog(req.user.id, 'delete_user', 'user', userId, null);
+        res.status(200).json({ success: true, message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+const deleteExamAdmin = async (req, res) => {
+    let transaction;
+    try {
+        const examId = Number(req.params.id);
+        const forceDelete = String(req.query.force || '').toLowerCase() === 'true';
+        if (!Number.isInteger(examId) || examId <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid exam id' });
+        }
+
+        const stats = await getExamAttemptStats(examId);
+        if (!forceDelete && stats && (Number(stats.total_attempts || 0) > 0 || Number(stats.open_attempts || 0) > 0)) {
+            return res.status(409).json({
+                success: false,
+                message: 'This exam has attempts. Use force delete to remove it.'
+            });
+        }
+
+        transaction = new sql.Transaction();
+        await transaction.begin();
+        const tx = new sql.Request(transaction);
+
+        if (await hasTable('proctoring_violations')) {
+            await tx.query`
+                DELETE FROM proctoring_violations
+                WHERE attempt_id IN (
+                    SELECT id
+                    FROM exam_attempts
+                    WHERE exam_id = ${examId}
+                )
+            `;
+        }
+        if (await hasTable('answers')) {
+            await tx.query`
+                DELETE FROM answers
+                WHERE attempt_id IN (
+                    SELECT id
+                    FROM exam_attempts
+                    WHERE exam_id = ${examId}
+                )
+            `;
+        }
+        if (await hasTable('exam_attempts')) {
+            await tx.query`
+                DELETE FROM exam_attempts
+                WHERE exam_id = ${examId}
+            `;
+        }
+        if (await hasTable('options')) {
+            await tx.query`
+                DELETE FROM options
+                WHERE question_id IN (
+                    SELECT id
+                    FROM questions
+                    WHERE exam_id = ${examId}
+                )
+            `;
+        }
+        if (await hasTable('questions')) {
+            await tx.query`
+                DELETE FROM questions
+                WHERE exam_id = ${examId}
+            `;
+        }
+
+        const deleteResult = await tx.query`
+            DELETE FROM exams
+            WHERE id = ${examId}
+        `;
+        if ((deleteResult.rowsAffected?.[0] || 0) === 0) {
+            await transaction.rollback();
+            return res.status(404).json({ success: false, message: 'Exam not found' });
+        }
+
+        await transaction.commit();
+        await writeAuditLog(req.user.id, 'delete_exam', 'exam', examId, JSON.stringify({ forceDelete }));
+        res.status(200).json({
+            success: true,
+            message: forceDelete ? 'Exam and attempts deleted successfully' : 'Exam deleted successfully'
+        });
+    } catch (error) {
+        if (transaction) {
+            try { await transaction.rollback(); } catch (_) {}
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -1096,25 +1440,32 @@ const getStatistics = async (_req, res) => {
 module.exports = {
     getUniversities,
     addUniversity,
+    deleteUniversity,
     getBranches,
     addBranch,
+    deleteBranch,
     getFaculties,
     addFaculty,
+    deleteFaculty,
     getDepartments,
     addDepartment,
+    deleteDepartment,
     getCourses,
     addCourse,
+    deleteCourse,
     getUsers,
     addUser,
     backfillDemoExamsForUsers,
     updateUser,
     resetUserPassword,
+    deleteUser,
     setUserAcademicVerification,
     setUserStatus,
     setUsersBulkStatus,
     setUsersBulkAcademicVerification,
     getExams,
     updateExam,
+    deleteExamAdmin,
     getAttempts,
     forceSubmitAttempt,
     forceSubmitAttemptsBulk,
