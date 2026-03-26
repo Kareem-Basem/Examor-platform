@@ -140,6 +140,6 @@ This project reflects strong skills in:
 
 ## ⭐ Final Note
 
-Examor started as a graduation project — and evolved into a production-level system.
+Examor started as a simple project — and evolved into a production-level system.
 
 If you find it interesting, feel free to ⭐ the repository.
