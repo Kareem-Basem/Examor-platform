@@ -101,14 +101,6 @@ This ERD illustrates the relationships between users, exams, questions, attempts
 
 ---
 
-## 🚀 Deployment
-
-* Frontend: Vercel
-* Backend: Serverless (Vercel)
-* Database: Supabase (PostgreSQL)
-
----
-
 
 ## 🧠 Why This Project Stands Out
 
