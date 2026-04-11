@@ -871,7 +871,7 @@ function Footer({ openContact, navigate }) {
                                 </svg>
                             ),
                             text: 'Kareem Basem Fathi',
-                            href: 'https://kareem-basem-portfolio.vercel.app/'
+                            href: 'https://kareem-basem.vercel.app/'
                         }
                     ].map((item,i) => (
                         item.href
