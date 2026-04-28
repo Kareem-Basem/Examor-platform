@@ -1591,7 +1591,7 @@ function DoctorDashboard() {
       course.branch_name ? `${text.branch}: ${course.branch_name}` : null,
       course.university_name ? `${text.university}: ${course.university_name}` : null,
     ].filter(Boolean);
-    return parts.join(' â€¢ ');
+    return parts.join(' | ');
   }, [text.academicYear, text.branch, text.department, text.faculty, text.university]);
 
   const visibleExams = useMemo(() => {
@@ -1824,7 +1824,7 @@ function DoctorDashboard() {
                   {examForm.access_mode === 'department' && (
                     <div style={{ gridColumn: '1 / -1' }}>
                       <div style={{ color: colors.textMuted, fontSize: 12, fontWeight: 'bold', marginBottom: 6 }}>{text.course}</div>
-                      <select value={examForm.course_id} onChange={(e) => setExamForm({ ...examForm, course_id: e.target.value })} style={inputStyle} required disabled={courses.length === 0}>
+                      <select value={examForm.course_id} onChange={(e) => setExamForm({ ...examForm, course_id: e.target.value })} style={inputStyle} dir="auto" required disabled={courses.length === 0}>
                         {courses.length === 0 ? (
                           <option value="">{text.noCourses}</option>
                         ) : (
@@ -2774,7 +2774,7 @@ function DoctorDashboard() {
                 {editExamForm.access_mode === 'department' && (
                   <div style={{ gridColumn: '1 / -1' }}>
                     <div style={{ color: colors.textMuted, fontSize: 12, fontWeight: 'bold', marginBottom: 6 }}>{text.course}</div>
-                    <select value={editExamForm.course_id} onChange={(e) => setEditExamForm({ ...editExamForm, course_id: e.target.value })} style={inputStyle} required disabled={courses.length === 0}>
+                    <select value={editExamForm.course_id} onChange={(e) => setEditExamForm({ ...editExamForm, course_id: e.target.value })} style={inputStyle} dir="auto" required disabled={courses.length === 0}>
                       {courses.length === 0 ? (
                         <option value="">{text.noCourses}</option>
                       ) : (
