@@ -18,7 +18,7 @@ const originList = String(process.env.CORS_ORIGINS || '')
     .filter(Boolean);
 
 const allowVercelPreview = String(process.env.ALLOW_VERCEL_PREVIEW || 'true').toLowerCase() === 'true';
-const vercelPreviewRegex = /^https:\/\/examor-frontend(?:-[a-z0-9-]+)?\.vercel\.app$/i;
+const vercelPreviewRegex = /^https:\/\/examor-(?:frontend|platform)(?:-[a-z0-9-]+)?\.vercel\.app$/i;
 
 const corsOptions = originList.length > 0
     ? {
