@@ -1120,7 +1120,7 @@ const addUser = async (req, res) => {
         `;
         const createdUserId = Number(result.recordset[0]?.id || 0);
 
-        if (createdUserId > 0 && ['student', 'teacher'].includes(role)) {
+        if (createdUserId > 0 && ['student', 'teacher', 'doctor'].includes(role)) {
             await createDemoExamIfMissing({
                 userId: createdUserId,
                 role,
@@ -1141,7 +1141,7 @@ const backfillDemoExamsForUsers = async (req, res) => {
         const usersResult = await sql.query`
             SELECT id, name, role
             FROM users
-            WHERE role IN ('student', 'teacher')
+            WHERE role IN ('student', 'teacher', 'doctor')
             ORDER BY id ASC
         `;
 
@@ -1238,6 +1238,14 @@ const updateUser = async (req, res) => {
                 profile_mode = ${derivedProfileMode}
             WHERE id = ${userId}
         `;
+
+        if (['student', 'teacher', 'doctor'].includes(role)) {
+            await createDemoExamIfMissing({
+                userId,
+                role,
+                userName: nextName || existing.recordset[0]?.name || 'User'
+            });
+        }
 
         await writeAuditLog(req.user.id, 'update_user', 'user', userId, JSON.stringify({ name, email, role, universityId, departmentId, derivedProfileMode }));
 
