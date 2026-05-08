@@ -282,7 +282,7 @@ const createExam = async (req, res) => {
         const maxAttempts = normalizeAttemptsLimit(max_attempts_per_student);
         const screenProtection = normalizeBoolean(screen_capture_protection);
         const demoExam = normalizeBoolean(is_demo_exam);
-        let examCode = typeof exam_code === 'string' ? exam_code.trim() : '';
+        let examCode = typeof exam_code === 'string' ? exam_code.trim().toUpperCase() : '';
 
         if (!title || !duration || !total_marks) {
             return res.status(400).json({
@@ -352,7 +352,7 @@ const createExam = async (req, res) => {
         const duplicateCode = await sql.query`
             SELECT id
             FROM exams
-            WHERE exam_code = ${examCode}
+            WHERE UPPER(exam_code) = ${examCode}
         `;
 
         if (duplicateCode.recordset.length > 0) {
@@ -590,7 +590,7 @@ const updateExam = async (req, res) => {
     try {
         const examId = Number(req.params.id);
         const title = typeof req.body.title === 'string' ? req.body.title.trim() : '';
-        let examCode = typeof req.body.exam_code === 'string' ? req.body.exam_code.trim() : '';
+        let examCode = typeof req.body.exam_code === 'string' ? req.body.exam_code.trim().toUpperCase() : '';
         const duration = Number(req.body.duration);
         const totalMarks = Number(req.body.total_marks);
         const startDate = req.body.start_date || null;
@@ -662,7 +662,7 @@ const updateExam = async (req, res) => {
         const duplicateCode = await sql.query`
             SELECT id
             FROM exams
-            WHERE exam_code = ${examCode}
+            WHERE UPPER(exam_code) = ${examCode}
               AND id <> ${examId}
         `;
 

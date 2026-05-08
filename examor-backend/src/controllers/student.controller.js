@@ -666,7 +666,7 @@ const getExamMeta = async (code, studentId) => {
     const attemptRandomizationEnabled = await hasAttemptRandomizationColumns();
     const request = new sql.Request();
     request.input('studentId', sql.Int, studentId);
-    request.input('examCode', sql.NVarChar, code);
+    request.input('examCode', sql.NVarChar, normalizeText(code).toUpperCase());
 
     const query = `
         WITH candidate_exams AS (
@@ -727,7 +727,7 @@ const getExamMeta = async (code, studentId) => {
                 ORDER BY ea.submit_time DESC, ea.id DESC
                 LIMIT 1
             ) completed_attempt ON TRUE
-            WHERE e.exam_code = @examCode
+            WHERE UPPER(e.exam_code) = @examCode
               AND student.role = 'student'
               AND (
                   (

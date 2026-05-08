@@ -601,13 +601,13 @@ function DoctorDashboard() {
     const normalized = String(value).trim();
 
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(normalized)) {
-      return `${normalized}:00`;
+      const parsed = new Date(normalized);
+      return Number.isNaN(parsed.getTime()) ? `${normalized}:00` : parsed.toISOString();
     }
 
     const parsed = new Date(normalized);
     if (!Number.isNaN(parsed.getTime())) {
-      const pad = (num) => String(num).padStart(2, '0');
-      return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:00`;
+      return parsed.toISOString();
     }
 
     const localeMatch = normalized.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -616,8 +616,8 @@ function DoctorDashboard() {
       let hours = Number(rawHours);
       if (meridiem.toUpperCase() === 'PM' && hours !== 12) hours += 12;
       if (meridiem.toUpperCase() === 'AM' && hours === 12) hours = 0;
-      const pad = (num) => String(num).padStart(2, '0');
-      return `${year}-${pad(Number(month))}-${pad(Number(day))}T${pad(hours)}:${minutes}:00`;
+      const localized = new Date(Number(year), Number(month) - 1, Number(day), hours, Number(minutes), 0);
+      return Number.isNaN(localized.getTime()) ? normalized : localized.toISOString();
     }
 
     return normalized;
