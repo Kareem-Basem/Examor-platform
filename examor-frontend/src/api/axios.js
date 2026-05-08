@@ -1,6 +1,20 @@
 import axios from 'axios';
 
-const apiBase = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+const resolveApiBase = () => {
+    const configuredBase = String(process.env.REACT_APP_API_BASE_URL || '').trim();
+    if (configuredBase) return configuredBase;
+
+    if (typeof window !== 'undefined') {
+        const hostname = String(window.location.hostname || '').toLowerCase();
+        if (/^examor-(frontend|platform)(-[a-z0-9-]+)?\.vercel\.app$/.test(hostname)) {
+            return 'https://examor-backend.vercel.app';
+        }
+    }
+
+    return 'http://localhost:5000';
+};
+
+const apiBase = resolveApiBase();
 const normalizedBase = apiBase.replace(/\/$/, '');
 
 const API = axios.create({
